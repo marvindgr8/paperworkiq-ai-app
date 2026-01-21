@@ -18,13 +18,16 @@ pnpm install
 
 ### 2) Configure environment variables
 
-Copy the root template and adjust values:
+Create a root `.env` file with the backend settings:
 
 ```bash
-cp .env.example .env
+DATABASE_URL="mysql://USER:PASSWORD@HOST:3306/paperworkiq"
+JWT_SECRET="replace-with-a-long-random-string"
+BACKEND_PORT=4000
+FRONTEND_PORT=5173
 ```
 
-Ensure you have a MySQL database available and update `DATABASE_URL` accordingly.
+The frontend can optionally set a `VITE_API_URL` (defaults to `http://localhost:4000` when unset).
 
 ### 3) Run database migrations
 
@@ -41,6 +44,40 @@ pnpm dev
 
 - Frontend: http://localhost:5173
 - Backend: http://localhost:4000
+
+## Frontend instructions
+
+### Run the frontend only
+
+```bash
+pnpm -C frontend dev
+```
+
+### Configure API base URL (optional)
+
+Create `frontend/.env.local` if you want to override the backend URL:
+
+```bash
+VITE_API_URL="http://localhost:4000"
+```
+
+## Backend instructions
+
+### Run the backend only
+
+```bash
+pnpm -C backend dev
+```
+
+### Backend prerequisites
+
+- MySQL database reachable via `DATABASE_URL`.
+- Prisma client generated and migrations applied:
+
+```bash
+pnpm -C backend prisma:generate
+pnpm -C backend prisma:migrate
+```
 
 ## Useful scripts
 
