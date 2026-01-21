@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:backfill": "tsx prisma/backfillWorkspaces.ts",
     "prisma:studio": "prisma studio",
     "test": "vitest run"
   },

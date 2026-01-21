@@ -15,9 +15,9 @@ const SignIn = () => {
         <form className="mt-8 space-y-5">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700" htmlFor="email">
-              Work email
+              Email
             </label>
-            <Input id="email" placeholder="you@company.com" type="email" />
+            <Input id="email" placeholder="you@example.com" type="email" />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700" htmlFor="password">

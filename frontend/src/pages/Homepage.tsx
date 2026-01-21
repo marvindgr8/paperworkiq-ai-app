@@ -27,6 +27,9 @@ const Homepage = () => {
             <a className="hover:text-slate-900" href="#security">
               Security
             </a>
+            <a className="hover:text-slate-900" href="/teams">
+              For teams
+            </a>
           </nav>
           <div className="flex items-center gap-3">
             <Button href="/signin" variant="ghost" size="sm">
@@ -44,7 +47,7 @@ const Homepage = () => {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#f1f5f9,_transparent_60%)]" />
           <div className="relative mx-auto grid max-w-6xl gap-16 px-6 pb-20 pt-16 md:grid-cols-[1.1fr_0.9fr] md:pt-24">
             <div className="space-y-8">
-              <Badge>AI-ready document intelligence</Badge>
+              <Badge>Personal paperwork, calm by design</Badge>
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -54,8 +57,8 @@ const Homepage = () => {
                 PaperworkIQ turns messy paperwork into calm, searchable clarity.
               </motion.h1>
               <p className="text-lg text-slate-600">
-                Collect, organize, and extract insights from documents with an Apple-premium experience
-                built for modern operations teams.
+                Scan letters, bills, and official documents. Extract key details and find anything in
+                seconds — with citations.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button href="/signup" size="lg">
@@ -67,10 +70,10 @@ const Homepage = () => {
               </div>
               <div className="flex flex-wrap gap-6 text-sm text-slate-500">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-slate-900" /> SOC2-ready foundation
+                  <ShieldCheck className="h-4 w-4 text-slate-900" /> Private by default
                 </div>
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-slate-900" /> AI extraction coming soon
+                  <Sparkles className="h-4 w-4 text-slate-900" /> Smart organization coming soon
                 </div>
               </div>
             </div>
@@ -86,7 +89,11 @@ const Homepage = () => {
                   <Badge className="bg-slate-900 text-white">Live</Badge>
                 </div>
                 <div className="space-y-4">
-                  {["Invoice_0412.pdf", "Lease-Agreement.docx", "Policy_Update.pdf"].map(
+                  {[
+                    "Council_Tax_Notice.pdf",
+                    "Energy_Bill_Jan.pdf",
+                    "Clinic_Appointment.pdf",
+                  ].map(
                     (file) => (
                       <div
                         key={file}
@@ -94,11 +101,11 @@ const Homepage = () => {
                       >
                         <div>
                           <p className="text-sm font-medium text-slate-900">{file}</p>
-                          <p className="text-xs text-slate-500">Ready for extraction</p>
+                          <p className="text-xs text-slate-500">Ready for organization</p>
                         </div>
-                <Button size="sm" variant="outline">
-                  Review
-                </Button>
+                        <Button size="sm" variant="outline">
+                          Review
+                        </Button>
                       </div>
                     )
                   )}
@@ -111,11 +118,11 @@ const Homepage = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-2xl font-semibold text-slate-900">128</p>
-                      <p className="text-xs text-slate-500">Docs processed</p>
+                      <p className="text-xs text-slate-500">Docs organized</p>
                     </div>
                     <div>
                       <p className="text-2xl font-semibold text-slate-900">4.9/5</p>
-                      <p className="text-xs text-slate-500">Accuracy score</p>
+                      <p className="text-xs text-slate-500">Clarity rating</p>
                     </div>
                   </div>
                 </div>
@@ -129,29 +136,29 @@ const Homepage = () => {
             <div>
               <Badge>Designed for speed</Badge>
               <h2 className="mt-4 text-3xl font-semibold text-slate-900">
-                Everything you need to orchestrate paperwork.
+                Everything you need to keep household paperwork calm.
               </h2>
             </div>
             <p className="max-w-xl text-slate-600">
-              PaperworkIQ centralizes documents, metadata, and extraction-ready workflows so your team
-              never loses track of what matters.
+              PaperworkIQ centralizes letters, bills, and records with metadata ready for instant
+              recall whenever you need it.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
               {
-                title: "Unified intake",
-                description: "Capture PDFs, scans, and forms with metadata ready for extraction.",
+                title: "Capture letters & bills",
+                description: "Upload PDFs, scans, and photos with the details that matter.",
                 icon: Files,
               },
               {
-                title: "Precision-ready",
-                description: "Schema-first storage keeps every field mapped and auditable.",
+                title: "From upload to insight",
+                description: "Keep key dates, amounts, and senders organized for quick answers.",
                 icon: Gauge,
               },
               {
                 title: "Security built-in",
-                description: "Granular permissions, audit trails, and privacy-first storage.",
+                description: "Private-by-default storage today, with team controls ready when you need them.",
                 icon: Lock,
               },
             ].map((feature) => (
@@ -171,19 +178,19 @@ const Homepage = () => {
         <section id="workflow" className="bg-slate-50">
           <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
-              <Badge>Workflow</Badge>
+              <Badge>From upload to insight</Badge>
               <h2 className="text-3xl font-semibold text-slate-900">
-                A calm pipeline from upload to insight.
+                A calm path from upload to answers.
               </h2>
               <p className="text-slate-600">
-                PaperworkIQ tracks every step: intake, validation, extraction, and review. Give your
-                team the visibility they need without the chaos.
+                PaperworkIQ keeps every document organized: capture, tag, and review with citations so
+                you can find the right page in seconds.
               </p>
               <div className="grid gap-4">
                 {[
-                  "Invite stakeholders and collect documents",
-                  "Auto-tag files and apply extraction templates",
-                  "Review results with citations and confidence",
+                  "Collect household letters and scans in one place",
+                  "Tag key dates, totals, and senders automatically",
+                  "Review details with citations and clarity",
                 ].map((step, index) => (
                   <div key={step} className="flex items-start gap-4">
                     <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700">
@@ -201,10 +208,10 @@ const Homepage = () => {
                   View all
                 </Button>
               </div>
-              {["Tenant application", "Vendor contract", "Renewal addendum"].map((item) => (
+              {["Council tax reminder", "Insurance renewal", "Dental receipt"].map((item) => (
                 <div key={item} className="rounded-2xl border border-slate-100 p-4">
                   <p className="text-sm font-medium text-slate-900">{item}</p>
-                  <p className="text-xs text-slate-500">Extraction queued · 2 min ago</p>
+                  <p className="text-xs text-slate-500">Ready to review · 2 min ago</p>
                 </div>
               ))}
             </Card>
@@ -216,14 +223,14 @@ const Homepage = () => {
             <Card className="space-y-4">
               <Badge>Security</Badge>
               <h3 className="text-2xl font-semibold text-slate-900">
-                Enterprise-grade protection from day one.
+                Private, protected, and ready for what’s next.
               </h3>
               <p className="text-sm text-slate-600">
-                Built with secure storage, scoped access, and audit-ready logging so you can scale
-                confidently.
+                Built with secure storage, scoped access, and audit-ready logging so you can share
+                safely when teams arrive.
               </p>
               <div className="space-y-3">
-                {["Encrypted at rest", "Role-based access", "Private-by-default projects"].map(
+                {["Encrypted at rest", "Role-based access", "Private-by-default workspaces"].map(
                   (item) => (
                     <div key={item} className="flex items-center gap-3 text-sm text-slate-600">
                       <ShieldCheck className="h-4 w-4 text-slate-900" /> {item}
@@ -235,10 +242,10 @@ const Homepage = () => {
             <div className="space-y-6">
               <h3 className="text-2xl font-semibold text-slate-900">Stay ahead of every file.</h3>
               <p className="text-slate-600">
-                Sign up for updates as we roll out uploads, OCR, and AI extraction automation.
+                Sign up for updates as we roll out uploads, OCR, and AI-assisted organization.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Input placeholder="you@company.com" type="email" />
+                <Input placeholder="you@example.com" type="email" />
                 <Button href="/signup" size="lg">
                   Get early access
                 </Button>
@@ -260,6 +267,9 @@ const Homepage = () => {
             </a>
             <a className="hover:text-slate-900" href="/signup">
               Get early access
+            </a>
+            <a className="hover:text-slate-900" href="/teams">
+              For teams
             </a>
             <a className="hover:text-slate-900" href="#features">
               Features
