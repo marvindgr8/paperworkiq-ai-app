@@ -5,12 +5,14 @@ PaperworkIQ is a calm, Apple-premium workspace for collecting documents, trackin
 ## Tech stack
 
 - **Frontend:** Vite, React, TypeScript, Tailwind CSS, React Router, shadcn-inspired UI components
-- **Backend:** Node.js (20+), Express, TypeScript, Prisma, MySQL, Zod, JWT auth scaffolding
+- **Backend:** Node.js (20.19+), Express, TypeScript, Prisma, MySQL, Zod, JWT auth scaffolding
 - **Tooling:** pnpm workspaces, concurrently, Vitest
 
 ## Getting started
 
 ### 1) Install dependencies
+
+This project expects **Node.js 20.19+** (or 22.12+) to run Vite 7 without runtime crypto errors.
 
 ```bash
 pnpm install
