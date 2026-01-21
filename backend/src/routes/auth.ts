@@ -7,6 +7,15 @@ import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAut
 
 export const authRouter = Router();
 
+const toPersonalWorkspaceName = (name?: string | null) => {
+  const trimmed = name?.trim();
+  if (!trimmed) {
+    return "Personal";
+  }
+  const firstName = trimmed.split(/\s+/)[0];
+  return `${firstName}'s Paperwork`;
+};
+
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -28,17 +37,38 @@ authRouter.post(
     }
 
     const passwordHash = await hashPassword(data.password);
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        name: data.name,
-        passwordHash,
-      },
-      select: { id: true, email: true, name: true, createdAt: true },
+    const { user, workspace } = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email: data.email,
+          name: data.name,
+          passwordHash,
+        },
+        select: { id: true, email: true, name: true, createdAt: true },
+      });
+
+      const createdWorkspace = await tx.workspace.create({
+        data: {
+          name: toPersonalWorkspaceName(createdUser.name),
+          type: "PERSONAL",
+          ownerId: createdUser.id,
+        },
+        select: { id: true, name: true, type: true, createdAt: true },
+      });
+
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: createdWorkspace.id,
+          userId: createdUser.id,
+          role: "OWNER",
+        },
+      });
+
+      return { user: createdUser, workspace: createdWorkspace };
     });
 
     const token = signToken(user.id);
-    res.status(201).json({ ok: true, user, token });
+    res.status(201).json({ ok: true, user, workspace, token });
   })
 );
 

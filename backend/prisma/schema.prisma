@@ -19,21 +19,64 @@ enum ChatRole {
   ASSISTANT
 }
 
+enum WorkspaceType {
+  PERSONAL
+  TEAM
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  name         String?
-  passwordHash String
-  documents    Document[]
-  sessions     ChatSession[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                 String            @id @default(cuid())
+  email              String            @unique
+  name               String?
+  passwordHash       String
+  documents          Document[]
+  sessions           ChatSession[]
+  ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers   WorkspaceMember[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  type      WorkspaceType     @default(PERSONAL)
+  ownerId   String
+  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  documents Document[]
+  sessions  ChatSession[]
+  members   WorkspaceMember[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([ownerId])
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  user        User          @relation(fields: [userId], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
 }
 
 model Document {
   id          String           @id @default(cuid())
   userId      String
+  workspaceId String
   user        User             @relation(fields: [userId], references: [id])
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
   title       String?
   fileName    String?
   mimeType    String?
@@ -46,6 +89,7 @@ model Document {
   updatedAt   DateTime         @updatedAt
 
   @@index([userId])
+  @@index([workspaceId])
 }
 
 model ExtractedField {
@@ -65,13 +109,16 @@ model ExtractedField {
 }
 
 model ChatSession {
-  id        String        @id @default(cuid())
-  userId    String
-  user      User          @relation(fields: [userId], references: [id])
-  messages  ChatMessage[]
-  createdAt DateTime      @default(now())
+  id          String        @id @default(cuid())
+  userId      String
+  workspaceId String
+  user        User          @relation(fields: [userId], references: [id])
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  messages    ChatMessage[]
+  createdAt   DateTime      @default(now())
 
   @@index([userId])
+  @@index([workspaceId])
 }
 
 model ChatMessage {

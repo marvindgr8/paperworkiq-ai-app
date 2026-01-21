@@ -1,6 +1,6 @@
 # PaperworkIQ
 
-PaperworkIQ is a calm, Apple-premium workspace for collecting documents, tracking extraction pipelines, and preparing structured data for future AI insights. This repository provides the initial monorepo scaffold with a React frontend and an Express + Prisma backend.
+PaperworkIQ is a calm, Apple-premium home for personal paperwork, with a data model ready for future shared workspaces. This repository provides the initial monorepo scaffold with a React frontend and an Express + Prisma backend.
 
 ## Tech stack
 
@@ -36,6 +36,12 @@ The frontend can optionally set a `VITE_API_URL` (defaults to `http://localhost:
 ```bash
 pnpm -C backend prisma:generate
 pnpm -C backend prisma:migrate
+```
+
+If you already have users in the database, backfill their personal workspaces:
+
+```bash
+pnpm -C backend prisma:backfill
 ```
 
 ### 4) Start the dev servers
@@ -96,6 +102,8 @@ pnpm -C backend prisma:migrate
 - `POST /api/auth/register` — register user
 - `POST /api/auth/login` — login user
 - `GET /api/auth/me` — authenticated user
+- `GET /api/workspaces` — list workspaces (auth required)
+- `GET /api/workspaces/current` — current workspace (auth required)
 - `POST /api/docs` — create document (auth required)
 - `GET /api/docs` — list documents (auth required)
 - `GET /api/docs/:id` — fetch document (auth required)
