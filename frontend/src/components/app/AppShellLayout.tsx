@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Menu, PanelsRight, Sparkles } from "lucide-react";
+import { Menu, PanelRight, Sparkles } from "lucide-react";
 import AppSidebar from "@/components/app/AppSidebar";
 import EvidencePanel from "@/components/app/EvidencePanel";
 import EvidenceDrawer from "@/components/app/EvidenceDrawer";
@@ -50,7 +50,7 @@ const AppShellLayout = () => {
                 onClick={() => setEvidenceOpen(true)}
                 type="button"
               >
-                <PanelsRight className="h-4 w-4" />
+                <PanelRight className="h-4 w-4" />
               </button>
             </div>
             <main className="flex-1 overflow-hidden">
