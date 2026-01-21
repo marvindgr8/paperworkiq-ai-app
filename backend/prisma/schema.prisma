@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  passwordHash String
+  documents    Document[]
+  sessions     ChatSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Document {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  title       String?
+  fileName    String?
+  mimeType    String?
+  sizeBytes   Int?
+  storageKey  String?
+  status      DocumentStatus   @default(UPLOADED)
+  rawText     String?          @db.LongText
+  fields      ExtractedField[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId])
+}
+
+model ExtractedField {
+  id            String   @id @default(cuid())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id])
+  key           String
+  valueText     String?
+  valueNumber   Float?
+  valueDate     DateTime?
+  confidence    Float?
+  sourcePage    Int?
+  sourceSnippet String?
+  createdAt     DateTime @default(now())
+
+  @@index([documentId])
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id])
+  role      ChatRole
+  content   String    @db.LongText
+  createdAt DateTime  @default(now())
+
+  @@index([sessionId])
+}
