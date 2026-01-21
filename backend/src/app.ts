@@ -5,6 +5,7 @@ import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { docsRouter } from "./routes/docs.js";
 import { workspacesRouter } from "./routes/workspaces.js";
+import { chatRouter } from "./routes/chat.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { env } from "./lib/env.js";
 
@@ -24,6 +25,7 @@ export const createApp = () => {
   app.use("/api/auth", authRouter);
   app.use("/api/workspaces", workspacesRouter);
   app.use("/api/docs", docsRouter);
+  app.use("/api/chat", chatRouter);
 
   app.use(errorHandler);
 
