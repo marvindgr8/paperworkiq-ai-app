@@ -29,11 +29,11 @@ const Homepage = () => {
             </a>
           </nav>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm">
+            <Button href="/signin" variant="ghost" size="sm">
               Sign in
             </Button>
-            <Button size="sm">
-              Request demo
+            <Button href="/signup" size="sm">
+              Get early access
             </Button>
           </div>
         </div>
@@ -58,11 +58,11 @@ const Homepage = () => {
                 built for modern operations teams.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button size="lg">
-                  Start free pilot <ArrowRight className="ml-2 h-4 w-4" />
+                <Button href="/signup" size="lg">
+                  Get early access <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline">
-                  Watch overview
+                <Button href="/signin" size="lg" variant="outline">
+                  Sign in
                 </Button>
               </div>
               <div className="flex flex-wrap gap-6 text-sm text-slate-500">
@@ -96,9 +96,9 @@ const Homepage = () => {
                           <p className="text-sm font-medium text-slate-900">{file}</p>
                           <p className="text-xs text-slate-500">Ready for extraction</p>
                         </div>
-                        <Button size="sm" variant="outline">
-                          Review
-                        </Button>
+                <Button size="sm" variant="outline">
+                  Review
+                </Button>
                       </div>
                     )
                   )}
@@ -239,7 +239,9 @@ const Homepage = () => {
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Input placeholder="you@company.com" type="email" />
-                <Button size="lg">Join waitlist</Button>
+                <Button href="/signup" size="lg">
+                  Get early access
+                </Button>
               </div>
               <p className="text-xs text-slate-400">
                 We respect your inbox. No spam, just launch updates.
@@ -255,6 +257,9 @@ const Homepage = () => {
           <div className="flex items-center gap-6">
             <a className="hover:text-slate-900" href="/signin">
               Sign in
+            </a>
+            <a className="hover:text-slate-900" href="/signup">
+              Get early access
             </a>
             <a className="hover:text-slate-900" href="#features">
               Features
