@@ -3,19 +3,16 @@ import { FileText, Quote, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
-import { useAppGate } from "@/hooks/useAppGate";
-import Button from "@/components/ui/Button";
 
 interface EvidencePanelProps {
   className?: string;
 }
 
 const EvidencePanel = ({ className }: EvidencePanelProps) => {
-  const { docCount, isLoading, openUpload } = useAppGate();
-  const { mode, sources, selectedSource, setSelectedSource } = useEvidenceContext();
+  const { sources, selectedSourceId, setSelectedSourceId } = useEvidenceContext();
   const { selectedDocument } = useDocumentSelection();
-  const showUploadFirst = !isLoading && docCount === 0;
   const showSelectedDocument = Boolean(selectedDocument) && sources.length === 0;
+  const selectedSource = sources.find((source) => source.id === selectedSourceId) ?? sources[0];
 
   const activeTitle = useMemo(() => {
     if (selectedSource) {
@@ -27,56 +24,10 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
     return "Evidence";
   }, [selectedSource, selectedDocument, showSelectedDocument]);
 
-  if (mode === "compact") {
-    return (
-      <aside
-        className={clsx(
-          "flex h-full w-72 flex-col gap-4 border-l border-zinc-200/70 bg-white/80 px-5 py-6",
-          className
-        )}
-      >
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Evidence</p>
-          <h2 className="text-lg font-semibold text-slate-900">Evidence stays out of the way</h2>
-          <p className="text-sm text-slate-500">
-            Ask a question in chat to see cited sources and highlights.
-          </p>
-        </div>
-        <div className="mt-auto rounded-[20px] border border-dashed border-zinc-200/70 bg-zinc-50 px-4 py-4 text-xs text-slate-400">
-          Evidence appears when you ask questions.
-        </div>
-      </aside>
-    );
-  }
-
-  if (showUploadFirst) {
-    return (
-      <aside
-        className={clsx(
-          "flex h-full w-80 flex-col gap-4 border-l border-zinc-200/70 bg-white/80 px-5 py-6",
-          className
-        )}
-      >
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Evidence</p>
-          <h2 className="text-lg font-semibold text-slate-900">Waiting for your first upload</h2>
-          <p className="text-sm text-slate-500">
-            Evidence appears as soon as you add a document to your inbox.
-          </p>
-        </div>
-        <div className="mt-auto">
-          <Button size="sm" onClick={openUpload}>
-            Upload a document
-          </Button>
-        </div>
-      </aside>
-    );
-  }
-
   return (
     <aside
       className={clsx(
-        "flex h-full w-96 flex-col gap-6 border-l border-zinc-200/70 bg-white/80 px-5 py-6",
+        "flex h-full flex-col gap-6 bg-white/80 px-5 py-6",
         className
       )}
     >
@@ -114,9 +65,9 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[28px] border border-dashed border-zinc-200/80 bg-zinc-50/70 px-6 text-center">
             <Sparkles className="h-6 w-6 text-slate-400" />
             <div>
-              <p className="text-sm font-medium text-slate-700">No cited sources yet.</p>
+              <p className="text-sm font-medium text-slate-700">No sources for this answer.</p>
               <p className="text-xs text-slate-500">
-                Answers will cite the exact letter and page as soon as documents are uploaded.
+                Sources appear when PaperworkIQ cites a specific letter or page.
               </p>
             </div>
           </div>
@@ -130,14 +81,14 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
             <div className="space-y-2">
               {sources.map((citation) => (
                 <button
-                  key={`${citation.documentId}-${citation.page ?? ""}-${citation.snippet ?? ""}`}
+                  key={citation.id}
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-left text-sm transition",
-                    selectedSource?.documentId === citation.documentId
+                    selectedSource?.id === citation.id
                       ? "border-slate-900 bg-slate-900 text-white"
                       : "border-zinc-200/70 bg-white text-slate-700 hover:border-slate-300"
                   )}
-                  onClick={() => setSelectedSource(citation)}
+                  onClick={() => setSelectedSourceId(citation.id)}
                   type="button"
                 >
                   <div className="flex items-center justify-between">

@@ -7,7 +7,6 @@ import ChatUploadEmptyState from "@/components/chat/ChatUploadEmptyState";
 import ChatThread from "@/components/chat/ChatThread";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useChatSession } from "@/hooks/useChatSession";
-import { useEvidenceSelection } from "@/hooks/useEvidenceSelection";
 import { useAppGate } from "@/hooks/useAppGate";
 import Button from "@/components/ui/Button";
 import { sendChatMessage } from "@/lib/api";
@@ -19,7 +18,6 @@ const ChatHome = () => {
   const { sessions, startNewSession } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { messages, setMessages } = useChatSession(activeSessionId ?? undefined);
-  const { setSelectedMessage } = useEvidenceSelection();
   const { docCount, isLoading, openUpload } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
 
@@ -38,7 +36,6 @@ const ChatHome = () => {
         const session = await startNewSession();
         setActiveSessionId(session.id);
         setMessages([]);
-        setSelectedMessage(null);
       } catch (error) {
         setActiveSessionId(null);
       } finally {
@@ -50,14 +47,7 @@ const ChatHome = () => {
     };
 
     void createSession();
-  }, [newChatRequested, setMessages, setSearchParams, setSelectedMessage, startNewSession]);
-
-  useEffect(() => {
-    const latestAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
-    if (latestAssistant) {
-      setSelectedMessage(latestAssistant);
-    }
-  }, [messages, setSelectedMessage]);
+  }, [newChatRequested, setMessages, setSearchParams, startNewSession]);
 
   const handleSend = async (content: string) => {
     if (uploadFirst) {
@@ -105,7 +95,6 @@ const ChatHome = () => {
         ...prev.filter((message) => message.id !== pendingId),
         assistantMessage,
       ]);
-      setSelectedMessage(assistantMessage);
     } catch (error) {
       setMessages((prev) => prev.filter((message) => message.id !== pendingId));
     }
@@ -160,7 +149,7 @@ const ChatHome = () => {
             <ChatEmptyState />
           )
         ) : (
-          <ChatThread messages={messages} onSelectEvidence={setSelectedMessage} />
+          <ChatThread messages={messages} />
         )}
       </div>
 
@@ -170,7 +159,7 @@ const ChatHome = () => {
         helperText={
           uploadFirst
             ? "Upload at least one document to ask questions."
-            : "Responses are grounded in your uploaded paperwork only."
+            : "Responses are grounded in your uploaded paperwork only. Sources appear when PaperworkIQ cites a letter."
         }
       />
     </div>

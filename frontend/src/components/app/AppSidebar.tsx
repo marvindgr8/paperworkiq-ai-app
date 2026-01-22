@@ -1,9 +1,9 @@
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   Bell,
+  MessageCircle,
   FolderOpen,
   LayoutGrid,
-  MessageCircle,
   Plus,
   Search,
   Settings,
@@ -26,11 +26,7 @@ interface AppSidebarProps {
 
 const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
   const { docCount, isLoading, openUpload } = useAppGate();
-  const location = useLocation();
-  const navigate = useNavigate();
   const showInboxBadge = !isLoading;
-  const activeCategory = new URLSearchParams(location.search).get("category") ?? "All";
-  const categories = ["All", "Council", "Health", "Energy", "Bank", "Housing"];
   return (
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
@@ -86,43 +82,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
             Chat
           </span>
         </NavLink>
-        <NavLink className={navItemClass} to="/app/overview">
-          <span className="flex items-center gap-2">
-            Overview
-          </span>
-        </NavLink>
       </nav>
-
-      <div className="space-y-2">
-        <p className="px-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Categories
-        </p>
-        <div className="space-y-2">
-          {categories.map((item) => (
-            <button
-              key={item}
-              className={clsx(
-                "flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm transition",
-                activeCategory === item
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
-              )}
-              onClick={() =>
-                item === "All"
-                  ? navigate("/app")
-                  : navigate(`/app?category=${encodeURIComponent(item)}`)
-              }
-              type="button"
-            >
-              <span className="flex items-center gap-2">
-                <FolderOpen className="h-4 w-4" />
-                {item === "All" ? "All documents" : item}
-              </span>
-              <span className="text-xs text-slate-400">·</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="mt-auto space-y-2">
         <NavLink className={navItemClass} to="/app/settings">
