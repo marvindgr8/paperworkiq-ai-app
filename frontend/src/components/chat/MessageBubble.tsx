@@ -4,10 +4,9 @@ import type { ChatMessageDTO } from "@/types/chat";
 
 interface MessageBubbleProps {
   message: ChatMessageDTO;
-  onSelectEvidence: (message: ChatMessageDTO) => void;
 }
 
-const MessageBubble = ({ message, onSelectEvidence }: MessageBubbleProps) => {
+const MessageBubble = ({ message }: MessageBubbleProps) => {
   const isAssistant = message.role === "ASSISTANT";
 
   return (
@@ -22,7 +21,7 @@ const MessageBubble = ({ message, onSelectEvidence }: MessageBubbleProps) => {
       >
         <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
         {isAssistant ? (
-          <MessageSources citations={message.citations} onSelect={() => onSelectEvidence(message)} />
+          <MessageSources citations={message.citations} />
         ) : null}
       </div>
     </div>

@@ -56,7 +56,7 @@ describe("app routes", () => {
     renderApp("/app");
 
     expect(await screen.findByText("Upload paperwork")).toBeInTheDocument();
-    expect(screen.getByText("Evidence stays out of the way")).toBeInTheDocument();
+    expect(screen.getByText("Upload your first document")).toBeInTheDocument();
   });
 
   it("navigates to /app/doc/:id when a document row is clicked", async () => {
@@ -85,5 +85,27 @@ describe("app routes", () => {
 
     expect(await screen.findByText("PaperworkIQ Chat")).toBeInTheDocument();
     expect(screen.getByText("Search across your paperwork.")).toBeInTheDocument();
+  });
+
+  it("redirects /app/overview to /app", async () => {
+    mockDocCount = 0;
+    listDocuments.mockResolvedValue({ ok: true, docs: [] });
+
+    renderApp("/app/overview");
+
+    expect(await screen.findByText("Upload paperwork")).toBeInTheDocument();
+    expect(screen.getByText("Inbox")).toBeInTheDocument();
+  });
+
+  it("renders simplified sidebar without overview or categories", async () => {
+    mockDocCount = 0;
+    listDocuments.mockResolvedValue({ ok: true, docs: [] });
+
+    renderApp("/app");
+
+    expect(await screen.findByText("Inbox")).toBeInTheDocument();
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Categories")).not.toBeInTheDocument();
+    expect(screen.queryByText("All documents")).not.toBeInTheDocument();
   });
 });

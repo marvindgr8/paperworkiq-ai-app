@@ -6,7 +6,6 @@ import ChatThread from "@/components/chat/ChatThread";
 import Button from "@/components/ui/Button";
 import { getDocument, type DocumentDTO } from "@/lib/api";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
-import { useEvidenceSelection } from "@/hooks/useEvidenceSelection";
 import type { ChatMessageDTO } from "@/types/chat";
 
 const promptChips = [
@@ -31,7 +30,6 @@ const DocSplitViewPage = () => {
   const [activeTab, setActiveTab] = useState<PreviewTabKey>("preview");
   const [loadingDoc, setLoadingDoc] = useState(true);
   const { setSelectedDocument } = useDocumentSelection();
-  const { setSelectedMessage } = useEvidenceSelection();
 
   useEffect(() => {
     let isMounted = true;
@@ -61,9 +59,8 @@ const DocSplitViewPage = () => {
     return () => {
       isMounted = false;
       setSelectedDocument(null);
-      setSelectedMessage(null);
     };
-  }, [id, setSelectedDocument, setSelectedMessage]);
+  }, [id, setSelectedDocument]);
 
   const title = document?.title ?? document?.fileName ?? "Untitled document";
   const createdAtLabel = document?.createdAt
@@ -90,7 +87,6 @@ const DocSplitViewPage = () => {
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setSelectedMessage(assistantMessage);
   };
 
   const headerSubtitle = useMemo(() => {
@@ -213,7 +209,7 @@ const DocSplitViewPage = () => {
                 </div>
               ) : (
                 <div className="h-[420px]">
-                  <ChatThread messages={messages} onSelectEvidence={setSelectedMessage} />
+                  <ChatThread messages={messages} />
                 </div>
               )}
             </div>

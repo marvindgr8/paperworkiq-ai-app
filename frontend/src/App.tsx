@@ -7,7 +7,6 @@ import AppShellLayout from "./components/app/AppShellLayout";
 import ChatHome from "./pages/app/ChatHome";
 import InboxHomePage from "./pages/app/InboxHomePage";
 import ActionsPage from "./pages/app/ActionsPage";
-import OverviewPage from "./pages/app/OverviewPage";
 import SettingsPage from "./pages/app/SettingsPage";
 import DocSplitViewPage from "./pages/app/DocSplitViewPage";
 
@@ -24,9 +23,9 @@ const App = () => {
         <Route path="doc/:id" element={<DocSplitViewPage />} />
         <Route path="chat" element={<ChatHome />} />
         <Route path="actions" element={<ActionsPage />} />
-        <Route path="overview" element={<OverviewPage />} />
+        <Route path="overview" element={<Navigate to="/app" replace />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="dashboard" element={<Navigate to="/app/overview" replace />} />
+        <Route path="dashboard" element={<Navigate to="/app" replace />} />
       </Route>
     </Routes>
   );
