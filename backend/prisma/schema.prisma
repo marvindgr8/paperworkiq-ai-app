@@ -14,6 +14,13 @@ enum DocumentStatus {
   FAILED
 }
 
+enum DocumentAiStatus {
+  PENDING
+  CATEGORIZING
+  READY
+  FAILED
+}
+
 enum ChatRole {
   USER
   ASSISTANT
@@ -50,12 +57,26 @@ model Workspace {
   ownerId   String
   owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
   documents Document[]
+  categories Category[]
   sessions  ChatSession[]
   members   WorkspaceMember[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
   @@index([ownerId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents   Document[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model WorkspaceMember {
@@ -72,21 +93,26 @@ model WorkspaceMember {
 }
 
 model Document {
-  id          String           @id @default(cuid())
-  userId      String
-  workspaceId String
-  user        User             @relation(fields: [userId], references: [id])
-  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
-  title       String?
-  fileName    String?
-  mimeType    String?
-  sizeBytes   Int?
-  storageKey  String?
-  status      DocumentStatus   @default(UPLOADED)
-  rawText     String?          @db.LongText
-  fields      ExtractedField[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String            @id @default(cuid())
+  userId        String
+  workspaceId   String
+  categoryId    String?
+  user          User              @relation(fields: [userId], references: [id])
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id])
+  category      Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title         String?
+  fileName      String?
+  mimeType      String?
+  sizeBytes     Int?
+  storageKey    String?
+  status        DocumentStatus    @default(UPLOADED)
+  aiStatus      DocumentAiStatus  @default(PENDING)
+  aiConfidence  Float?
+  aiMetaJson    String?           @db.LongText
+  rawText       String?           @db.LongText
+  fields        ExtractedField[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([userId])
   @@index([workspaceId])

@@ -35,7 +35,7 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Evidence</p>
         <h2 className="text-lg font-semibold text-slate-900">{activeTitle}</h2>
         <p className="text-sm text-slate-500">
-          Every answer is anchored to the exact letter, page, and line.
+          Every answer is anchored to the exact document, page, and line.
         </p>
       </div>
 
@@ -67,7 +67,7 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
             <div>
               <p className="text-sm font-medium text-slate-700">No sources for this answer.</p>
               <p className="text-xs text-slate-500">
-                Sources appear when PaperworkIQ cites a specific letter or page.
+                Sources appear when PaperworkIQ cites a specific document or page.
               </p>
             </div>
           </div>

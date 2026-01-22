@@ -22,6 +22,9 @@ const cleanupUser = async (email: string) => {
   await prisma.extractedField.deleteMany({ where: { document: { is: { userId: user.id } } } });
   await prisma.document.deleteMany({ where: { userId: user.id } });
   if (workspaceIds.length > 0) {
+    await prisma.category.deleteMany({ where: { workspaceId: { in: workspaceIds } } });
+  }
+  if (workspaceIds.length > 0) {
     await prisma.workspaceMember.deleteMany({
       where: { OR: [{ userId: user.id }, { workspaceId: { in: workspaceIds } }] },
     });
@@ -57,6 +60,13 @@ describe("workspace-aware onboarding", () => {
     expect(workspacesResponse.body.workspaces).toHaveLength(1);
     expect(workspacesResponse.body.workspaces[0].type).toBe("PERSONAL");
 
+    const workspaceId = workspacesResponse.body.workspaces[0].id as string;
+    const categories = await prisma.category.findMany({
+      where: { workspaceId },
+      select: { id: true },
+    });
+    expect(categories).toHaveLength(0);
+
     await cleanupUser(email);
   });
 
@@ -82,7 +92,7 @@ describe("workspace-aware onboarding", () => {
     await request(app)
       .post("/api/docs")
       .set("Authorization", `Bearer ${token}`)
-      .send({ title: "Personal letter" });
+      .send({ title: "Personal document" });
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {

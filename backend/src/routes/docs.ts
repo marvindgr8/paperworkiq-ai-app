@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAuth.js";
 import { ensureWorkspaceAccess, getAccessibleWorkspace } from "../lib/workspace.js";
+import { enqueueCategorization } from "../jobs/categorizationQueue.js";
 
 export const docsRouter = Router();
 
@@ -14,11 +15,11 @@ const createDocSchema = z.object({
   sizeBytes: z.number().int().optional(),
 });
 
-const getWorkspaceIdFromQuery = (workspaceId: string | string[] | undefined) => {
-  if (Array.isArray(workspaceId)) {
-    return workspaceId[0];
+const getQueryValue = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) {
+    return value[0];
   }
-  return workspaceId;
+  return value;
 };
 
 docsRouter.use(requireAuth);
@@ -34,7 +35,7 @@ docsRouter.post(
 
     const workspace = await getAccessibleWorkspace(
       userId,
-      getWorkspaceIdFromQuery(req.query.workspaceId)
+      getQueryValue(req.query.workspaceId)
     );
     if (!workspace) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
@@ -48,8 +49,11 @@ docsRouter.post(
         fileName: data.fileName,
         mimeType: data.mimeType,
         sizeBytes: data.sizeBytes,
+        aiStatus: "PENDING",
       },
     });
+
+    enqueueCategorization(doc.id);
 
     res.status(201).json({ ok: true, doc });
   })
@@ -65,15 +69,27 @@ docsRouter.get(
 
     const workspace = await getAccessibleWorkspace(
       userId,
-      getWorkspaceIdFromQuery(req.query.workspaceId)
+      getQueryValue(req.query.workspaceId)
     );
     if (!workspace) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    const categoryId = getQueryValue(req.query.categoryId);
+    const categoryName = getQueryValue(req.query.categoryName);
+
+    const where = {
+      workspaceId: workspace.id,
+      ...(categoryId ? { categoryId } : {}),
+      ...(categoryName
+        ? { category: { name: { equals: categoryName, mode: "insensitive" } } }
+        : {}),
+    };
+
     const docs = await prisma.document.findMany({
-      where: { workspaceId: workspace.id },
+      where,
       orderBy: { createdAt: "desc" },
+      include: { category: { select: { id: true, name: true } } },
     });
 
     res.json({ ok: true, docs });
@@ -90,7 +106,7 @@ docsRouter.get(
 
     const workspace = await getAccessibleWorkspace(
       userId,
-      getWorkspaceIdFromQuery(req.query.workspaceId)
+      getQueryValue(req.query.workspaceId)
     );
     if (!workspace) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
@@ -114,6 +130,7 @@ docsRouter.get(
 
     const doc = await prisma.document.findUnique({
       where: { id: req.params.id },
+      include: { category: { select: { id: true, name: true } } },
     });
 
     if (!doc) {

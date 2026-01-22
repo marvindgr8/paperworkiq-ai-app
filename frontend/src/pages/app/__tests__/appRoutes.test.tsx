@@ -7,6 +7,7 @@ import type { DocumentDTO } from "@/lib/api";
 let mockDocCount = 0;
 
 const listDocuments = vi.fn();
+const listCategories = vi.fn();
 const getDocument = vi.fn();
 
 vi.mock("@/hooks/useDocumentCount", () => ({
@@ -31,6 +32,7 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     listDocuments,
+    listCategories,
     getDocument,
     sendChatMessage: vi.fn(),
   };
@@ -46,7 +48,9 @@ const renderApp = (route: string) =>
 describe("app routes", () => {
   beforeEach(() => {
     listDocuments.mockReset();
+    listCategories.mockReset();
     getDocument.mockReset();
+    listCategories.mockResolvedValue({ ok: true, categories: [] });
   });
 
   it("renders upload-first inbox on /app", async () => {
@@ -56,7 +60,7 @@ describe("app routes", () => {
     renderApp("/app");
 
     expect(await screen.findByText("Upload paperwork")).toBeInTheDocument();
-    expect(screen.getByText("Upload your first document")).toBeInTheDocument();
+    expect(screen.getByText("Upload your first document to get started.")).toBeInTheDocument();
   });
 
   it("navigates to /app/doc/:id when a document row is clicked", async () => {

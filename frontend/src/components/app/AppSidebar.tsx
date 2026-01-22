@@ -54,7 +54,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
         ) : null}
         <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
           <Search className="h-4 w-4" />
-          <span>Search letters</span>
+          <span>Search documents</span>
         </div>
       </div>
 

@@ -158,7 +158,7 @@ chatRouter.post(
       docs.find((doc) => (doc.title ?? doc.fileName ?? "").toLowerCase().includes(keyword));
 
     if (docs.length === 0) {
-      responseText = "Upload a letter or bill and I’ll cite the exact page for you.";
+      responseText = "Upload a document or bill and I’ll cite the exact page for you.";
       citationDoc = undefined;
     } else if (lower.includes("council")) {
       citationDoc = findDoc("council") ?? docs[0];
@@ -170,7 +170,7 @@ chatRouter.post(
         "Your recent energy bill looks ready to summarize. I can highlight the total due and billing period.";
     } else {
       responseText =
-        "I can help with that. I’ll cite the exact letter and page once we confirm the right document.";
+        "I can help with that. I’ll cite the exact document and page once we confirm the right document.";
     }
 
     if (citationDoc) {

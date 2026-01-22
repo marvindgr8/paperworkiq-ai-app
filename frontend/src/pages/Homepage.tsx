@@ -57,7 +57,7 @@ const Homepage = () => {
                 PaperworkIQ turns messy paperwork into calm, searchable clarity.
               </motion.h1>
               <p className="text-lg text-slate-600">
-                Scan letters, bills, and official documents. Extract key details and find anything in
+                Scan documents, bills, and official records. Extract key details and find anything in
                 seconds — with citations.
               </p>
               <div className="flex flex-wrap gap-3">
@@ -140,14 +140,14 @@ const Homepage = () => {
               </h2>
             </div>
             <p className="max-w-xl text-slate-600">
-              PaperworkIQ centralizes letters, bills, and records with metadata ready for instant
+              PaperworkIQ centralizes documents, bills, and records with metadata ready for instant
               recall whenever you need it.
             </p>
           </div>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
               {
-                title: "Capture letters & bills",
+                title: "Capture documents & bills",
                 description: "Upload PDFs, scans, and photos with the details that matter.",
                 icon: Files,
               },
@@ -188,7 +188,7 @@ const Homepage = () => {
               </p>
               <div className="grid gap-4">
                 {[
-                  "Collect household letters and scans in one place",
+                  "Collect household documents and scans in one place",
                   "Tag key dates, totals, and senders automatically",
                   "Review details with citations and clarity",
                 ].map((step, index) => (

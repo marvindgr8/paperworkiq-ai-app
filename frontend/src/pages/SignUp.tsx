@@ -105,7 +105,7 @@ const SignUp = () => {
               <option value="" disabled>
                 Select one
               </option>
-              <option value="household-letters">Household letters</option>
+              <option value="household-documents">Household documents</option>
               <option value="bills">Bills</option>
               <option value="medical">Medical</option>
               <option value="everything">Everything</option>

@@ -104,9 +104,9 @@ const ChatHome = () => {
     if (messages.length === 0) {
       return uploadFirst
         ? "Upload paperwork to unlock answers with citations."
-        : "Ask anything about your documents, bills, and letters.";
+        : "Ask anything about your documents, bills, and records.";
     }
-    return "Answers are anchored to the exact letter and page.";
+    return "Answers are anchored to the exact document and page.";
   }, [messages.length, uploadFirst]);
 
   return (
@@ -159,7 +159,7 @@ const ChatHome = () => {
         helperText={
           uploadFirst
             ? "Upload at least one document to ask questions."
-            : "Responses are grounded in your uploaded paperwork only. Sources appear when PaperworkIQ cites a letter."
+            : "Responses are grounded in your uploaded paperwork only. Sources appear when PaperworkIQ cites a document."
         }
       />
     </div>
