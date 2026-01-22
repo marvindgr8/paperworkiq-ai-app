@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import Button from "@/components/ui/Button";
 import { listDocuments, type DocumentDTO } from "@/lib/api";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
@@ -9,6 +10,7 @@ const ActionsPage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
   const { docCount, isLoading } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -71,7 +73,7 @@ const ActionsPage = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-rose-500" />
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/app/doc/${doc.id}`)}>
                     Review
                   </Button>
                 </div>

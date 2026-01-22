@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useMemo } from "react";
 import { FileText, Quote, Sparkles } from "lucide-react";
 import clsx from "clsx";
-import { useEvidenceSelection } from "@/hooks/useEvidenceSelection";
+import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 import { useAppGate } from "@/hooks/useAppGate";
 import Button from "@/components/ui/Button";
-import type { Citation } from "@/types/chat";
 
 interface EvidencePanelProps {
   className?: string;
@@ -14,32 +12,42 @@ interface EvidencePanelProps {
 
 const EvidencePanel = ({ className }: EvidencePanelProps) => {
   const { docCount, isLoading, openUpload } = useAppGate();
-  const { selectedMessage } = useEvidenceSelection();
+  const { mode, sources, selectedSource, setSelectedSource } = useEvidenceContext();
   const { selectedDocument } = useDocumentSelection();
-  const location = useLocation();
-  const citations = selectedMessage?.citations ?? [];
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const showUploadFirst = !isLoading && docCount === 0;
-  const isInbox = location.pathname.startsWith("/app/inbox");
-  const showSelectedDocument = isInbox && Boolean(selectedDocument) && citations.length === 0;
-
-  useEffect(() => {
-    if (citations.length > 0) {
-      setActiveCitation(citations[0]);
-    } else {
-      setActiveCitation(null);
-    }
-  }, [citations]);
+  const showSelectedDocument = Boolean(selectedDocument) && sources.length === 0;
 
   const activeTitle = useMemo(() => {
-    if (activeCitation) {
-      return activeCitation.documentTitle;
+    if (selectedSource) {
+      return selectedSource.documentTitle;
     }
     if (showSelectedDocument) {
       return selectedDocument.title ?? selectedDocument.fileName ?? "Evidence";
     }
     return "Evidence";
-  }, [activeCitation, selectedDocument, showSelectedDocument]);
+  }, [selectedSource, selectedDocument, showSelectedDocument]);
+
+  if (mode === "compact") {
+    return (
+      <aside
+        className={clsx(
+          "flex h-full w-72 flex-col gap-4 border-l border-zinc-200/70 bg-white/80 px-5 py-6",
+          className
+        )}
+      >
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Evidence</p>
+          <h2 className="text-lg font-semibold text-slate-900">Evidence stays out of the way</h2>
+          <p className="text-sm text-slate-500">
+            Ask a question in chat to see cited sources and highlights.
+          </p>
+        </div>
+        <div className="mt-auto rounded-[20px] border border-dashed border-zinc-200/70 bg-zinc-50 px-4 py-4 text-xs text-slate-400">
+          Evidence appears when you ask questions.
+        </div>
+      </aside>
+    );
+  }
 
   if (showUploadFirst) {
     return (
@@ -80,7 +88,7 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
         </p>
       </div>
 
-      {citations.length === 0 ? (
+      {sources.length === 0 ? (
         showSelectedDocument ? (
           <div className="flex flex-1 flex-col gap-4 overflow-hidden">
             <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
@@ -120,16 +128,16 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
               Cited sources
             </p>
             <div className="space-y-2">
-              {citations.map((citation) => (
+              {sources.map((citation) => (
                 <button
                   key={`${citation.documentId}-${citation.page ?? ""}-${citation.snippet ?? ""}`}
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-left text-sm transition",
-                    activeCitation?.documentId === citation.documentId
+                    selectedSource?.documentId === citation.documentId
                       ? "border-slate-900 bg-slate-900 text-white"
                       : "border-zinc-200/70 bg-white text-slate-700 hover:border-slate-300"
                   )}
-                  onClick={() => setActiveCitation(citation)}
+                  onClick={() => setSelectedSource(citation)}
                   type="button"
                 >
                   <div className="flex items-center justify-between">
@@ -157,7 +165,7 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
               Highlight
             </div>
             <p className="rounded-2xl bg-zinc-50 px-3 py-2 text-xs text-slate-600">
-              {activeCitation?.snippet ?? "Select a citation to see the exact excerpt."}
+              {selectedSource?.snippet ?? "Select a citation to see the exact excerpt."}
             </p>
           </div>
 

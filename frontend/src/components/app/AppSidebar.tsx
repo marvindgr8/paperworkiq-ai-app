@@ -1,9 +1,7 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   FolderOpen,
-  Home,
-  Inbox,
   LayoutGrid,
   MessageCircle,
   Plus,
@@ -27,8 +25,12 @@ interface AppSidebarProps {
 }
 
 const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
-  const { docCount, isLoading } = useAppGate();
+  const { docCount, isLoading, openUpload } = useAppGate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const showInboxBadge = !isLoading;
+  const activeCategory = new URLSearchParams(location.search).get("category") ?? "All";
+  const categories = ["All", "Council", "Health", "Energy", "Bank", "Housing"];
   return (
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
@@ -39,15 +41,21 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
       </div>
 
       <div className="space-y-3">
-        <Button
-          className="w-full justify-center rounded-2xl"
-          size="lg"
-          variant="outline"
-          onClick={onNewChat}
-        >
+        <Button className="w-full justify-center rounded-2xl" size="lg" onClick={openUpload}>
           <Plus className="mr-2 h-4 w-4" />
-          New chat
+          Upload
         </Button>
+        {onNewChat ? (
+          <Button
+            className="w-full justify-center rounded-2xl"
+            size="sm"
+            variant="outline"
+            onClick={onNewChat}
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            New chat
+          </Button>
+        ) : null}
         <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
           <Search className="h-4 w-4" />
           <span>Search letters</span>
@@ -57,13 +65,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
       <nav className="space-y-2">
         <NavLink className={navItemClass} to="/app">
           <span className="flex items-center gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Chat
-          </span>
-        </NavLink>
-        <NavLink className={navItemClass} to="/app/inbox">
-          <span className="flex items-center gap-2">
-            <Inbox className="h-4 w-4" />
+            <FolderOpen className="h-4 w-4" />
             Inbox
           </span>
           {showInboxBadge ? (
@@ -78,9 +80,14 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
             Actions
           </span>
         </NavLink>
+        <NavLink className={navItemClass} to="/app/chat">
+          <span className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4" />
+            Chat
+          </span>
+        </NavLink>
         <NavLink className={navItemClass} to="/app/overview">
           <span className="flex items-center gap-2">
-            <Home className="h-4 w-4" />
             Overview
           </span>
         </NavLink>
@@ -91,17 +98,28 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
           Categories
         </p>
         <div className="space-y-2">
-          {["Council", "Health", "Energy", "Bank", "Housing"].map((item) => (
-            <div
+          {categories.map((item) => (
+            <button
               key={item}
-              className="flex items-center justify-between rounded-2xl px-3 py-2 text-sm text-slate-600"
+              className={clsx(
+                "flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm transition",
+                activeCategory === item
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
+              )}
+              onClick={() =>
+                item === "All"
+                  ? navigate("/app")
+                  : navigate(`/app?category=${encodeURIComponent(item)}`)
+              }
+              type="button"
             >
               <span className="flex items-center gap-2">
                 <FolderOpen className="h-4 w-4" />
-                {item}
+                {item === "All" ? "All documents" : item}
               </span>
               <span className="text-xs text-slate-400">·</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
