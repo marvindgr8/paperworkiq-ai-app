@@ -105,13 +105,14 @@ const WorkspaceMenu = () => {
             <Settings className="h-4 w-4 text-slate-500" />
             Settings
           </button>
+          <div className="my-2 h-px bg-zinc-100" />
           <button
             type="button"
             role="menuitem"
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-600 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
             onClick={handleSignOut}
           >
-            <LogOut className="h-4 w-4 text-slate-500" />
+            <LogOut className="h-4 w-4 text-rose-500" />
             Sign out
           </button>
         </div>
