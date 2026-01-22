@@ -1,16 +1,9 @@
 import { NavLink } from "react-router-dom";
-import {
-  Bell,
-  MessageCircle,
-  FolderOpen,
-  LayoutGrid,
-  Plus,
-  Search,
-  Settings,
-} from "lucide-react";
+import { Bell, MessageCircle, FolderOpen, Plus, Search } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
 import { useAppGate } from "@/hooks/useAppGate";
+import WorkspaceMenu from "@/components/app/WorkspaceMenu";
 
 const navItemClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
@@ -85,16 +78,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
       </nav>
 
       <div className="mt-auto space-y-2">
-        <NavLink className={navItemClass} to="/app/settings">
-          <span className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Settings
-          </span>
-        </NavLink>
-        <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm text-slate-600">
-          <LayoutGrid className="h-4 w-4" />
-          Workspace · Personal
-        </div>
+        <WorkspaceMenu />
       </div>
     </aside>
   );
