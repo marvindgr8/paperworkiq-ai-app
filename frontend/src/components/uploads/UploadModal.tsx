@@ -84,7 +84,7 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
           </p>
           <h2 className="text-xl font-semibold text-slate-900">Bring your paperwork in</h2>
           <p className="text-sm text-slate-500">
-            PaperworkIQ only answers with citations from your uploaded letters.
+            PaperworkIQ only answers with citations from your uploaded documents.
           </p>
         </div>
 

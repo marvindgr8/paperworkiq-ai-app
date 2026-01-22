@@ -4,7 +4,6 @@ import type { DocumentDTO } from "@/lib/api";
 
 interface DocumentRowProps {
   document: DocumentDTO;
-  category?: string;
   onSelect: (document: DocumentDTO) => void;
 }
 
@@ -22,9 +21,17 @@ const formatStatus = (status: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const DocumentRow = ({ document, category, onSelect }: DocumentRowProps) => {
+const DocumentRow = ({ document, onSelect }: DocumentRowProps) => {
   const createdAt = new Date(document.createdAt).toLocaleDateString();
   const badgeClass = statusStyles[document.status] ?? "bg-slate-100 text-slate-600";
+  const aiStatus = document.aiStatus ?? "PENDING";
+  const categoryLabel = document.category?.name
+    ? document.category.name
+    : aiStatus === "PENDING" || aiStatus === "CATEGORIZING"
+      ? "Categorizing…"
+      : aiStatus === "FAILED"
+        ? "Uncategorized"
+        : undefined;
 
   return (
     <button
@@ -47,7 +54,9 @@ const DocumentRow = ({ document, category, onSelect }: DocumentRowProps) => {
             <CalendarDays className="h-3 w-3" />
             {createdAt}
           </span>
-          {category ? <span className="rounded-full bg-zinc-100 px-2 py-0.5">{category}</span> : null}
+          {categoryLabel ? (
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5">{categoryLabel}</span>
+          ) : null}
         </div>
       </div>
       <span className="text-xs font-semibold text-slate-400">Open</span>

@@ -39,9 +39,7 @@ describe("upload-first gating", () => {
   it("shows upload-first CTA and collapses evidence when docCount is 0", () => {
     renderWithProviders({ docCount: 0 });
 
-    expect(
-      screen.getByText("Upload your first letter to get started.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Upload your first document to get started.")).toBeInTheDocument();
     expect(screen.getByText("Upload a document")).toBeInTheDocument();
   });
 

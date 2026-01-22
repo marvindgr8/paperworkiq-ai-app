@@ -5,7 +5,7 @@ import { useAppGate } from "@/hooks/useAppGate";
 const examplePrompts = [
   "When is my council tax due?",
   "Summarise my latest energy bill.",
-  "Find letters that need action.",
+  "Find documents that need action.",
 ];
 
 const ChatUploadEmptyState = () => {
@@ -16,7 +16,7 @@ const ChatUploadEmptyState = () => {
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <div className="max-w-xl space-y-6">
         <h1 className="text-3xl font-semibold text-slate-900">
-          Upload your first letter to get started.
+          Upload your first document to get started.
         </h1>
         <p className="text-sm text-slate-500">
           PaperworkIQ only answers using your uploaded paperwork — with citations.

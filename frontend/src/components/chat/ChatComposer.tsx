@@ -31,7 +31,7 @@ const ChatComposer = ({ onSend, disabled, helperText }: ChatComposerProps) => {
         </button>
         <input
           className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-          placeholder="Ask about a letter, a due date, or a reference number..."
+          placeholder="Ask about a document, due date, or reference number..."
           value={value}
           onChange={(event) => setValue(event.target.value)}
           disabled={disabled}

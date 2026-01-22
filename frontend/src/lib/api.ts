@@ -64,6 +64,11 @@ export interface ChatMessageDTO {
   }[];
 }
 
+export interface CategoryDTO {
+  id: string;
+  name: string;
+}
+
 export const listChatSessions = async () => {
   const response = await fetch(`${baseUrl}/api/chat/sessions`, {
     headers: { ...authHeaders() },
@@ -101,11 +106,24 @@ export interface DocumentDTO {
   title?: string | null;
   fileName?: string | null;
   status: string;
+  aiStatus?: string | null;
+  category?: CategoryDTO | null;
   createdAt: string;
 }
 
-export const listDocuments = async () => {
-  const response = await fetch(`${baseUrl}/api/docs`, {
+export const listDocuments = async (options?: { categoryId?: string }) => {
+  const url = new URL(`${baseUrl}/api/docs`);
+  if (options?.categoryId) {
+    url.searchParams.set("categoryId", options.categoryId);
+  }
+  const response = await fetch(url.toString(), {
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};
+
+export const listCategories = async () => {
+  const response = await fetch(`${baseUrl}/api/categories`, {
     headers: { ...authHeaders() },
   });
   return response.json();

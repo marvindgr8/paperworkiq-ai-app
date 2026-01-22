@@ -1,35 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listDocuments, type DocumentDTO } from "@/lib/api";
+import { listCategories, listDocuments, type CategoryDTO, type DocumentDTO } from "@/lib/api";
 import UploadPanel from "@/components/documents/UploadPanel";
 import DocumentList from "@/components/documents/DocumentList";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import { useAppGate } from "@/hooks/useAppGate";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 
-const filters = ["All", "Bills", "Council", "Health", "Bank", "Housing"];
-
-const categoryMatchers: Record<string, string[]> = {
-  Bills: ["bill", "invoice"],
-  Council: ["council"],
-  Health: ["health", "nhs"],
-  Bank: ["bank", "statement"],
-  Housing: ["rent", "housing"],
-};
-
-const inferCategory = (doc: DocumentDTO) => {
-  const title = (doc.title ?? doc.fileName ?? "").toLowerCase();
-  const match = Object.entries(categoryMatchers).find(([, keywords]) =>
-    keywords.some((keyword) => title.includes(keyword))
-  );
-  return match?.[0];
-};
-
 const InboxHomePage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
   const [query, setQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [categories, setCategories] = useState<CategoryDTO[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const { docCount, isLoading, uploadSignal } = useAppGate();
   const { setSelectedDocument } = useDocumentSelection();
@@ -39,19 +22,17 @@ const InboxHomePage = () => {
   const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
-    const category = searchParams.get("category");
-    if (category && filters.includes(category)) {
-      setActiveFilter(category);
-    } else if (!category) {
-      setActiveFilter("All");
-    }
+    const categoryId = searchParams.get("categoryId");
+    setActiveCategoryId(categoryId);
   }, [searchParams]);
 
   useEffect(() => {
     const fetchDocs = async () => {
       setIsFetching(true);
       try {
-        const response = await listDocuments();
+        const response = await listDocuments({
+          categoryId: activeCategoryId ?? undefined,
+        });
         if (response.ok) {
           setDocuments(response.docs ?? []);
         } else {
@@ -72,6 +53,30 @@ const InboxHomePage = () => {
       return;
     }
     void fetchDocs();
+  }, [activeCategoryId, docCount, isLoading, uploadSignal]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await listCategories();
+        if (response.ok) {
+          setCategories(response.categories ?? []);
+        } else {
+          setCategories([]);
+        }
+      } catch (error) {
+        setCategories([]);
+      }
+    };
+
+    if (isLoading) {
+      return;
+    }
+    if (docCount === 0) {
+      setCategories([]);
+      return;
+    }
+    void fetchCategories();
   }, [docCount, isLoading, uploadSignal]);
 
   useEffect(() => {
@@ -91,30 +96,21 @@ const InboxHomePage = () => {
     return documents.filter((doc) => {
       const title = (doc.title ?? doc.fileName ?? "Untitled").toLowerCase();
       const matchesQuery = title.includes(query.toLowerCase());
-      if (!matchesQuery) {
-        return false;
-      }
-      if (activeFilter === "All") {
-        return true;
-      }
-      if (activeFilter === "Bills") {
-        return categoryMatchers.Bills.some((keyword) => title.includes(keyword));
-      }
-      return title.includes(activeFilter.toLowerCase());
+      return matchesQuery;
     });
-  }, [documents, query, activeFilter]);
+  }, [documents, query]);
 
-  const handleFilterChange = (filter: string) => {
-    setActiveFilter(filter);
-    if (filter === "All") {
+  const handleFilterChange = (categoryId: string | null) => {
+    setActiveCategoryId(categoryId);
+    if (!categoryId) {
       setSearchParams((params) => {
-        params.delete("category");
+        params.delete("categoryId");
         return params;
       });
       return;
     }
     setSearchParams((params) => {
-      params.set("category", filter);
+      params.set("categoryId", categoryId);
       return params;
     });
   };
@@ -157,18 +153,29 @@ const InboxHomePage = () => {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {filters.map((filter) => (
+              <button
+                className={
+                  !activeCategoryId
+                    ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                    : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
+                }
+                onClick={() => handleFilterChange(null)}
+                type="button"
+              >
+                All
+              </button>
+              {categories.map((category) => (
                 <button
-                  key={filter}
+                  key={category.id}
                   className={
-                    activeFilter === filter
+                    activeCategoryId === category.id
                       ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
                       : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
                   }
-                  onClick={() => handleFilterChange(filter)}
+                  onClick={() => handleFilterChange(category.id)}
                   type="button"
                 >
-                  {filter}
+                  {category.name}
                 </button>
               ))}
             </div>
@@ -176,19 +183,15 @@ const InboxHomePage = () => {
 
           {uploadFirst ? (
             <UploadFirstEmptyState
-              title="Upload your first document"
-              description="Add a letter or bill to start tracking what needs attention."
+              title="Upload your first document to get started."
+              description="Add a document or bill to start tracking what needs attention."
             />
           ) : filteredDocs.length === 0 ? (
             <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
               {isFetching ? "Loading documents…" : "No matching documents yet."}
             </div>
           ) : (
-            <DocumentList
-              documents={filteredDocs}
-              getCategory={inferCategory}
-              onSelect={handleSelectDocument}
-            />
+            <DocumentList documents={filteredDocs} onSelect={handleSelectDocument} />
           )}
         </div>
       </div>
