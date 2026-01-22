@@ -81,6 +81,30 @@ docsRouter.get(
 );
 
 docsRouter.get(
+  "/count",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const workspace = await getAccessibleWorkspace(
+      userId,
+      getWorkspaceIdFromQuery(req.query.workspaceId)
+    );
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const count = await prisma.document.count({
+      where: { workspaceId: workspace.id },
+    });
+
+    res.json({ ok: true, count });
+  })
+);
+
+docsRouter.get(
   "/:id",
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = req.userId;

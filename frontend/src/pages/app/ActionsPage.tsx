@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { listDocuments, type DocumentDTO } from "@/lib/api";
+import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
+import { useAppGate } from "@/hooks/useAppGate";
 
 const ActionsPage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const { docCount, isLoading } = useAppGate();
+  const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -18,8 +22,15 @@ const ActionsPage = () => {
       }
     };
 
+    if (isLoading) {
+      return;
+    }
+    if (docCount === 0) {
+      setDocuments([]);
+      return;
+    }
     void fetchDocs();
-  }, []);
+  }, [docCount, isLoading]);
 
   const actionDocs = useMemo(() => {
     return documents.filter((doc) =>
@@ -36,7 +47,13 @@ const ActionsPage = () => {
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="space-y-4">
-          {actionDocs.length === 0 ? (
+          {uploadFirst ? (
+            <UploadFirstEmptyState
+              title="No actions without documents"
+              description="Upload a document and we’ll highlight any deadlines or urgent items."
+              actionLabel="Upload a document"
+            />
+          ) : actionDocs.length === 0 ? (
             <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
               Nothing urgent right now. We’ll surface action items as they appear.
             </div>

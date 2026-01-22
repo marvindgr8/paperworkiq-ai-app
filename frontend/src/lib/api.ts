@@ -110,3 +110,24 @@ export const listDocuments = async () => {
   });
   return response.json();
 };
+
+export const getDocumentCount = async () => {
+  const response = await fetch(`${baseUrl}/api/docs/count`, {
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};
+
+export const createDocument = async (payload: {
+  title?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}) => {
+  const response = await fetch(`${baseUrl}/api/docs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};

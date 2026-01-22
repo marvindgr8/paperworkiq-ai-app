@@ -3,10 +3,13 @@ import { useSearchParams } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatEmptyState from "@/components/chat/ChatEmptyState";
+import ChatUploadEmptyState from "@/components/chat/ChatUploadEmptyState";
 import ChatThread from "@/components/chat/ChatThread";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useChatSession } from "@/hooks/useChatSession";
 import { useEvidenceSelection } from "@/hooks/useEvidenceSelection";
+import { useAppGate } from "@/hooks/useAppGate";
+import Button from "@/components/ui/Button";
 import { sendChatMessage } from "@/lib/api";
 import type { ChatMessageDTO } from "@/types/chat";
 
@@ -17,6 +20,8 @@ const ChatHome = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { messages, setMessages } = useChatSession(activeSessionId ?? undefined);
   const { setSelectedMessage } = useEvidenceSelection();
+  const { docCount, isLoading, openUpload } = useAppGate();
+  const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
     if (!activeSessionId && sessions.length > 0) {
@@ -55,6 +60,9 @@ const ChatHome = () => {
   }, [messages, setSelectedMessage]);
 
   const handleSend = async (content: string) => {
+    if (uploadFirst) {
+      return;
+    }
     let sessionId = activeSessionId;
     if (!sessionId) {
       try {
@@ -105,10 +113,12 @@ const ChatHome = () => {
 
   const headerDescription = useMemo(() => {
     if (messages.length === 0) {
-      return "Ask anything about your documents, bills, and letters.";
+      return uploadFirst
+        ? "Upload paperwork to unlock answers with citations."
+        : "Ask anything about your documents, bills, and letters.";
     }
     return "Answers are anchored to the exact letter and page.";
-  }, [messages.length]);
+  }, [messages.length, uploadFirst]);
 
   return (
     <div className="flex h-full flex-col">
@@ -121,21 +131,48 @@ const ChatHome = () => {
             </div>
             <p className="text-xs text-slate-500">{headerDescription}</p>
           </div>
-          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">
-            Personal workspace
-          </span>
+          <div className="flex items-center gap-3">
+            {uploadFirst ? (
+              <Button size="sm" onClick={openUpload}>
+                Upload
+              </Button>
+            ) : null}
+            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">
+              Personal workspace
+            </span>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {messages.length === 0 ? (
-          <ChatEmptyState />
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="w-full max-w-2xl space-y-4 px-6">
+              <div className="h-6 w-40 animate-pulse rounded bg-zinc-200/70" />
+              <div className="h-4 w-full animate-pulse rounded bg-zinc-200/60" />
+              <div className="h-4 w-5/6 animate-pulse rounded bg-zinc-200/60" />
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
+          uploadFirst ? (
+            <ChatUploadEmptyState />
+          ) : (
+            <ChatEmptyState />
+          )
         ) : (
           <ChatThread messages={messages} onSelectEvidence={setSelectedMessage} />
         )}
       </div>
 
-      <ChatComposer onSend={handleSend} />
+      <ChatComposer
+        onSend={handleSend}
+        disabled={uploadFirst || isLoading}
+        helperText={
+          uploadFirst
+            ? "Upload at least one document to ask questions."
+            : "Responses are grounded in your uploaded paperwork only."
+        }
+      />
     </div>
   );
 };

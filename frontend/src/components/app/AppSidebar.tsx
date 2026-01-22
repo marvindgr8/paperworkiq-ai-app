@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
+import { useAppGate } from "@/hooks/useAppGate";
 
 const navItemClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
@@ -26,6 +27,8 @@ interface AppSidebarProps {
 }
 
 const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
+  const { docCount, isLoading } = useAppGate();
+  const showInboxBadge = !isLoading;
   return (
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
@@ -63,17 +66,16 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
             <Inbox className="h-4 w-4" />
             Inbox
           </span>
-          <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">
-            12
-          </span>
+          {showInboxBadge ? (
+            <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">
+              {docCount}
+            </span>
+          ) : null}
         </NavLink>
         <NavLink className={navItemClass} to="/app/actions">
           <span className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Actions
-          </span>
-          <span className="rounded-full bg-rose-500/90 px-2 py-0.5 text-xs font-semibold text-white">
-            4
           </span>
         </NavLink>
         <NavLink className={navItemClass} to="/app/overview">
