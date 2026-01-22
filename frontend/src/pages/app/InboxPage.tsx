@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, Search } from "lucide-react";
 import { listDocuments, type DocumentDTO } from "@/lib/api";
 import Button from "@/components/ui/Button";
+import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
+import { useAppGate } from "@/hooks/useAppGate";
+import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 
 const filters = ["All", "Bills", "Council", "Health", "Bank"];
 
@@ -10,6 +13,9 @@ const InboxPage = () => {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedDoc, setSelectedDoc] = useState<DocumentDTO | null>(null);
+  const { docCount, isLoading } = useAppGate();
+  const { setSelectedDocument } = useDocumentSelection();
+  const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -23,8 +29,22 @@ const InboxPage = () => {
       }
     };
 
+    if (isLoading) {
+      return;
+    }
+    if (docCount === 0) {
+      setDocuments([]);
+      return;
+    }
     void fetchDocs();
-  }, []);
+  }, [docCount, isLoading]);
+
+  useEffect(() => {
+    if (uploadFirst) {
+      setSelectedDoc(null);
+      setSelectedDocument(null);
+    }
+  }, [setSelectedDocument, uploadFirst]);
 
   const filteredDocs = useMemo(() => {
     return documents.filter((doc) => {
@@ -45,37 +65,44 @@ const InboxPage = () => {
           <p className="text-xs text-slate-500">Every document you’ve uploaded, in one place.</p>
         </div>
 
-        <div className="flex flex-col gap-4 px-6 py-4">
-          <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
-            <Search className="h-4 w-4" />
-            <input
-              className="flex-1 bg-transparent text-sm outline-none"
-              placeholder="Search documents"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+        {!uploadFirst ? (
+          <div className="flex flex-col gap-4 px-6 py-4">
+            <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
+              <Search className="h-4 w-4" />
+              <input
+                className="flex-1 bg-transparent text-sm outline-none"
+                placeholder="Search documents"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filters.map((filter) => (
+                <button
+                  key={filter}
+                  className={
+                    activeFilter === filter
+                      ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                      : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
+                  }
+                  onClick={() => setActiveFilter(filter)}
+                  type="button"
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {filters.map((filter) => (
-              <button
-                key={filter}
-                className={
-                  activeFilter === filter
-                    ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                    : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
-                }
-                onClick={() => setActiveFilter(filter)}
-                type="button"
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-        </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto px-6 pb-6">
           <div className="space-y-3">
-            {filteredDocs.length === 0 ? (
+            {uploadFirst ? (
+              <UploadFirstEmptyState
+                title="Upload your first document"
+                description="Add a letter or bill to start tracking what needs attention."
+              />
+            ) : filteredDocs.length === 0 ? (
               <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
                 No documents yet. Upload your first letter to get started.
               </div>
@@ -84,7 +111,10 @@ const InboxPage = () => {
                 <button
                   key={doc.id}
                   className="flex w-full items-center justify-between rounded-[28px] border border-zinc-200/70 bg-white px-4 py-4 text-left shadow-sm"
-                  onClick={() => setSelectedDoc(doc)}
+                  onClick={() => {
+                    setSelectedDoc(doc);
+                    setSelectedDocument(doc);
+                  }}
                   type="button"
                 >
                   <div>

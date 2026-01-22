@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { FileText, Quote, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useEvidenceSelection } from "@/hooks/useEvidenceSelection";
+import { useDocumentSelection } from "@/hooks/useDocumentSelection";
+import { useAppGate } from "@/hooks/useAppGate";
+import Button from "@/components/ui/Button";
 import type { Citation } from "@/types/chat";
 
 interface EvidencePanelProps {
@@ -9,9 +13,15 @@ interface EvidencePanelProps {
 }
 
 const EvidencePanel = ({ className }: EvidencePanelProps) => {
+  const { docCount, isLoading, openUpload } = useAppGate();
   const { selectedMessage } = useEvidenceSelection();
+  const { selectedDocument } = useDocumentSelection();
+  const location = useLocation();
   const citations = selectedMessage?.citations ?? [];
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const showUploadFirst = !isLoading && docCount === 0;
+  const isInbox = location.pathname.startsWith("/app/inbox");
+  const showSelectedDocument = isInbox && Boolean(selectedDocument) && citations.length === 0;
 
   useEffect(() => {
     if (citations.length > 0) {
@@ -22,11 +32,38 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
   }, [citations]);
 
   const activeTitle = useMemo(() => {
-    if (!activeCitation) {
-      return "Evidence";
+    if (activeCitation) {
+      return activeCitation.documentTitle;
     }
-    return activeCitation.documentTitle;
-  }, [activeCitation]);
+    if (showSelectedDocument) {
+      return selectedDocument.title ?? selectedDocument.fileName ?? "Evidence";
+    }
+    return "Evidence";
+  }, [activeCitation, selectedDocument, showSelectedDocument]);
+
+  if (showUploadFirst) {
+    return (
+      <aside
+        className={clsx(
+          "flex h-full w-80 flex-col gap-4 border-l border-zinc-200/70 bg-white/80 px-5 py-6",
+          className
+        )}
+      >
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Evidence</p>
+          <h2 className="text-lg font-semibold text-slate-900">Waiting for your first upload</h2>
+          <p className="text-sm text-slate-500">
+            Evidence appears as soon as you add a document to your inbox.
+          </p>
+        </div>
+        <div className="mt-auto">
+          <Button size="sm" onClick={openUpload}>
+            Upload a document
+          </Button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside
@@ -44,15 +81,38 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
       </div>
 
       {citations.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[28px] border border-dashed border-zinc-200/80 bg-zinc-50/70 px-6 text-center">
-          <Sparkles className="h-6 w-6 text-slate-400" />
-          <div>
-            <p className="text-sm font-medium text-slate-700">No cited sources yet.</p>
-            <p className="text-xs text-slate-500">
-              Answers will cite the exact letter and page as soon as documents are uploaded.
-            </p>
+        showSelectedDocument ? (
+          <div className="flex flex-1 flex-col gap-4 overflow-hidden">
+            <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Selected document
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {selectedDocument?.title ?? selectedDocument?.fileName ?? "Untitled document"}
+              </p>
+              <p className="text-xs text-slate-500">Status: {selectedDocument?.status}</p>
+            </div>
+            <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50 px-4 py-6 text-center text-xs text-slate-400">
+              Document preview placeholder
+            </div>
+            <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Highlights</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Select a citation in chat to see the exact excerpt here.
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[28px] border border-dashed border-zinc-200/80 bg-zinc-50/70 px-6 text-center">
+            <Sparkles className="h-6 w-6 text-slate-400" />
+            <div>
+              <p className="text-sm font-medium text-slate-700">No cited sources yet.</p>
+              <p className="text-xs text-slate-500">
+                Answers will cite the exact letter and page as soon as documents are uploaded.
+              </p>
+            </div>
+          </div>
+        )
       ) : (
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
           <div className="space-y-2">
