@@ -6,6 +6,8 @@ interface AppGateContextValue {
   error: Error | null;
   refetchDocumentCount: () => Promise<void> | void;
   openUpload: () => void;
+  notifyUploadComplete: () => void;
+  uploadSignal: number;
 }
 
 export const AppGateContext = createContext<AppGateContextValue | null>(null);

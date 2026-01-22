@@ -131,3 +131,10 @@ export const createDocument = async (payload: {
   });
   return response.json();
 };
+
+export const getDocument = async (id: string) => {
+  const response = await fetch(`${baseUrl}/api/docs/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};

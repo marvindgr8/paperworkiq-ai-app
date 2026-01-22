@@ -40,7 +40,7 @@ const OverviewPage = () => {
               <Button size="lg" variant="outline" onClick={openUpload}>
                 Upload a document
               </Button>
-              <Button size="lg" onClick={() => navigate("/app")}>
+              <Button size="lg" onClick={() => navigate("/app/chat")}>
                 Start a chat
               </Button>
             </div>
