@@ -34,6 +34,7 @@ vi.mock("@/lib/api", async () => {
     listDocuments,
     listCategories,
     getDocument,
+    fetchDocumentPreviewUrl: vi.fn().mockResolvedValue("blob:preview"),
     sendChatMessage: vi.fn(),
   };
 });
@@ -70,7 +71,6 @@ describe("app routes", () => {
       title: "Utility bill",
       fileName: "bill.pdf",
       mimeType: "image/png",
-      fileUrl: "/uploads/bill.png",
       status: "READY",
       createdAt: new Date().toISOString(),
     };
@@ -89,7 +89,6 @@ describe("app routes", () => {
       title: "Council tax reminder",
       fileName: "council.pdf",
       mimeType: "image/png",
-      fileUrl: "/uploads/test.png",
       status: "READY",
       createdAt: new Date().toISOString(),
     };
@@ -98,8 +97,14 @@ describe("app routes", () => {
       ok: true,
       doc: {
         ...doc,
-        ocrText: "Due date 2024-01-01",
-        extractData: { importantDates: [{ label: "Due date", date: "2024-01-01" }] },
+        rawText: "Due date 2024-01-01",
+        fields: [
+          {
+            id: "field-1",
+            key: "Due date",
+            valueDate: "2024-01-01",
+          },
+        ],
       },
     });
 
@@ -131,7 +136,6 @@ describe("app routes", () => {
       title: "Lease agreement",
       fileName: "lease.pdf",
       mimeType: "image/png",
-      fileUrl: "/uploads/lease.png",
       status: "READY",
       createdAt: new Date().toISOString(),
     };
@@ -140,8 +144,14 @@ describe("app routes", () => {
       ok: true,
       doc: {
         ...doc,
-        ocrText: "Lease term is 12 months",
-        extractData: { extractedFields: [{ label: "Term", value: "12 months" }] },
+        rawText: "Lease term is 12 months",
+        fields: [
+          {
+            id: "field-2",
+            key: "Term",
+            valueText: "12 months",
+          },
+        ],
       },
     });
 
@@ -164,7 +174,6 @@ describe("app routes", () => {
       title: "Bank statement",
       fileName: "statement.pdf",
       mimeType: "image/png",
-      fileUrl: "/uploads/statement.png",
       status: "READY",
       createdAt: new Date().toISOString(),
     };

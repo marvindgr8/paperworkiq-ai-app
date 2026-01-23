@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { detectSensitiveContent } from "../services/ocrService.js";
+import { detectSensitiveDocument } from "../services/ocrService.js";
 
-describe("detectSensitiveContent", () => {
+describe("detectSensitiveDocument", () => {
   it("flags passwords", () => {
-    const result = detectSensitiveContent("Password: hunter2");
+    const result = detectSensitiveDocument({ text: "Password: hunter2" });
     expect(result.matched).toBe(true);
   });
 
   it("allows non-sensitive text", () => {
-    const result = detectSensitiveContent("Invoice total is $120");
+    const result = detectSensitiveDocument({ text: "Invoice total is $120" });
     expect(result.matched).toBe(false);
   });
 });

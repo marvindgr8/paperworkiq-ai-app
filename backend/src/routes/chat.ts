@@ -159,9 +159,17 @@ chatRouter.post(
       id: string;
       title: string | null;
       fileName: string | null;
-      ocrText: string | null;
+      rawText: string | null;
       ocrPages: unknown;
-      extractData: unknown;
+      fields: Array<{
+        key: string;
+        valueText: string | null;
+        valueNumber: number | null;
+        valueDate: Date | null;
+        confidence: number | null;
+        sourcePage: number | null;
+        sourceSnippet: string | null;
+      }>;
       mimeType: string | null;
     };
 
@@ -175,9 +183,9 @@ chatRouter.post(
             id: true,
             title: true,
             fileName: true,
-            ocrText: true,
+            rawText: true,
             ocrPages: true,
-            extractData: true,
+            fields: true,
             mimeType: true,
           },
         });
@@ -191,9 +199,9 @@ chatRouter.post(
           id: true,
           title: true,
           fileName: true,
-          ocrText: true,
+          rawText: true,
           ocrPages: true,
-          extractData: true,
+          fields: true,
           mimeType: true,
           workspaceId: true,
         },
@@ -212,9 +220,9 @@ chatRouter.post(
         id: document.id,
         title: document.title,
         fileName: document.fileName,
-        ocrText: document.ocrText,
+        rawText: document.rawText,
         ocrPages: document.ocrPages,
-        extractData: document.extractData,
+        fields: document.fields,
         mimeType: document.mimeType,
       };
 
@@ -249,35 +257,20 @@ chatRouter.post(
     };
 
     const findFieldMatch = (
-      extractData: unknown,
+      fields: DocumentContext["fields"],
       keywordList: string[]
     ): { label: string; value: string } | null => {
-      if (!extractData || typeof extractData !== "object") {
+      if (!fields || fields.length === 0) {
         return null;
       }
-      const data = extractData as {
-        extractedFields?: Array<{ label?: string; value?: string }>;
-        importantDates?: Array<{ label?: string; date?: string }>;
-        amounts?: Array<{ label?: string; value?: number; currency?: string }>;
-      };
-      const candidates: Array<{ label: string; value: string }> = [];
-      data.extractedFields?.forEach((field) => {
-        if (field.label && field.value) {
-          candidates.push({ label: field.label, value: field.value });
-        }
+      const candidates = fields.map((field) => {
+        const value =
+          field.valueText ??
+          (field.valueNumber !== null ? String(field.valueNumber) : null) ??
+          (field.valueDate ? field.valueDate.toISOString().slice(0, 10) : null) ??
+          "";
+        return { label: field.key, value };
       });
-      data.importantDates?.forEach((field) => {
-        if (field.label && field.date) {
-          candidates.push({ label: field.label, value: field.date });
-        }
-      });
-      data.amounts?.forEach((field) => {
-        if (field.label && typeof field.value === "number") {
-          const value = `${field.currency ?? ""} ${field.value}`.trim();
-          candidates.push({ label: field.label, value });
-        }
-      });
-
       const lowerKeywords = keywordList.map((keyword) => keyword.toLowerCase());
       return (
         candidates.find((field) => {
@@ -298,7 +291,7 @@ chatRouter.post(
 
     for (const doc of docs) {
       const title = doc.title ?? doc.fileName ?? "Document";
-      const ocrText = doc.ocrText ?? "";
+      const ocrText = doc.rawText ?? "";
       const pages = normalizePages(doc.ocrPages);
       let snippet: string | null = null;
       let page: number | undefined = undefined;
@@ -328,7 +321,7 @@ chatRouter.post(
       }
 
       if (!snippet) {
-        const matchedField = findFieldMatch(doc.extractData, keywords);
+        const matchedField = findFieldMatch(doc.fields, keywords);
         if (matchedField) {
           snippet = `${matchedField.label}: ${matchedField.value}`;
           citations.push({
@@ -370,8 +363,21 @@ chatRouter.post(
 
     const selectedDocument = scopedDocument ?? docs[0];
     const documentTitle = selectedDocument?.title ?? selectedDocument?.fileName ?? "Document";
-    const ocrText = selectedDocument?.ocrText ?? "";
-    const extractData = selectedDocument?.extractData ?? {};
+    const ocrText = selectedDocument?.rawText ?? "";
+    const extractedFields = selectedDocument?.fields ?? [];
+
+    if (isDocumentScoped && (!selectedDocument || !ocrText.trim())) {
+      const assistantMessage = await prisma.chatMessage.create({
+        data: {
+          sessionId: session.id,
+          role: "ASSISTANT",
+          content: "I can’t read the document yet—processing is still running.",
+        },
+        select: { id: true, role: true, content: true, createdAt: true },
+      });
+
+      return res.status(201).json({ ok: true, message: assistantMessage, citations: [] });
+    }
 
     if (
       env.OPENAI_API_KEY &&
@@ -403,7 +409,7 @@ chatRouter.post(
                   `Question: ${data.content}`,
                   `Document: ${documentTitle} (id: ${selectedDocument.id})`,
                   "Extracted fields:",
-                  JSON.stringify(extractData).slice(0, 4000),
+                  JSON.stringify(extractedFields).slice(0, 4000),
                   "OCR text:",
                   ocrText.slice(0, 6000),
                   context ? `Snippets:\n${context}` : "",

@@ -9,14 +9,14 @@ const normalizeCategoryName = (name: string) => {
   const titleCased = trimmed
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
-  return titleCased.slice(0, 30);
+  return titleCased.slice(0, 40);
 };
 
-const buildSnippet = (ocrText?: string | null) => {
-  if (!ocrText) {
+const buildSnippet = (rawText?: string | null) => {
+  if (!rawText) {
     return null;
   }
-  return ocrText.slice(0, 500);
+  return rawText.slice(0, 500);
 };
 
 export const runCategorization = async (documentId: string) => {
@@ -46,26 +46,22 @@ export const runCategorization = async (documentId: string) => {
       filename: document.fileName ?? document.title ?? "Untitled",
       uploadedNote: document.title ?? null,
       issuer: null,
-      extractedTextSnippet: buildSnippet(document.ocrText),
+      extractedTextSnippet: buildSnippet(document.rawText ?? document.ocrText),
       existingCategories: existingCategories.map((category) => category.name),
     });
 
-    const normalizedName = normalizeCategoryName(result.categoryName) || "Other";
-
-    const matchedCategory = existingCategories.find(
-      (category) => normalizeCategoryName(category.name) === normalizedName,
-    );
-
-    const category =
-      matchedCategory ??
-      (await prisma.category.create({
-        data: { workspaceId: document.workspaceId, name: normalizedName },
-      }));
+    const normalizedName = normalizeCategoryName(result.categoryName);
+    const matchedCategory = normalizedName
+      ? existingCategories.find(
+          (category) => normalizeCategoryName(category.name) === normalizedName,
+        )
+      : null;
 
     const updatedDocument = await prisma.document.update({
       where: { id: document.id },
       data: {
-        categoryId: category.id,
+        categoryId: matchedCategory?.id ?? null,
+        categoryLabel: normalizedName || null,
         aiStatus: "READY",
         aiConfidence: result.confidence,
         aiMetaJson: JSON.stringify({

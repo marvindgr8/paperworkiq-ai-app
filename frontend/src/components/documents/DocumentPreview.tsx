@@ -1,85 +1,134 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { DocumentDTO } from "@/lib/api";
+import { fetchDocumentPreviewUrl } from "@/lib/api";
 import Button from "@/components/ui/Button";
-
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.js",
-  import.meta.url
-).toString();
 
 interface DocumentPreviewProps {
   document: DocumentDTO | null;
   actions?: ReactNode;
+  onRetryProcessing?: () => void;
 }
 
-const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-
-const resolveFileUrl = (fileUrl?: string | null) => {
-  if (!fileUrl) {
-    return null;
-  }
-  if (fileUrl.startsWith("http")) {
-    return fileUrl;
-  }
-  return `${baseUrl}${fileUrl}`;
+const statusStyles: Record<string, string> = {
+  READY: "bg-emerald-50 text-emerald-700",
+  PROCESSING: "bg-amber-50 text-amber-700",
+  FAILED: "bg-rose-50 text-rose-700",
+  UPLOADED: "bg-slate-100 text-slate-600",
 };
 
-const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
-  const [numPages, setNumPages] = useState(1);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [activeTab, setActiveTab] = useState<"preview" | "fields" | "notes">("preview");
+const formatStatus = (status: string) =>
+  status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
-  const fileUrl = useMemo(() => resolveFileUrl(document?.fileUrl), [document?.fileUrl]);
-  const isPdf = document?.mimeType === "application/pdf";
-  const fields = useMemo(() => {
-    const data = document?.extractData;
+const buildFieldList = (document: DocumentDTO | null) => {
+  if (!document) {
+    return [];
+  }
+  const fields =
+    document.fields?.map((field) => ({
+      label: field.key,
+      value:
+        field.valueText ??
+        field.valueNumber?.toString() ??
+        field.valueDate ??
+        "",
+    })) ?? [];
+
+  const legacyFields = (() => {
+    const data = document.extractData;
     if (!data || typeof data !== "object") {
       return [];
     }
     const typedData = data as {
-      extractedFields?: Array<{ label?: string; value?: string }>;
-      importantDates?: Array<{ label?: string; date?: string }>;
-      amounts?: Array<{ label?: string; value?: number; currency?: string }>;
       fields?: Array<Record<string, unknown>>;
+      extractedFields?: Array<{ label?: string; value?: string }>;
     };
-    const extracted = typedData.extractedFields?.map((field) => ({
-      label: String(field.label ?? ""),
-      value: String(field.value ?? ""),
-    }));
-    const dates = typedData.importantDates?.map((field) => {
-      const dateValue = field.date ? new Date(field.date) : null;
-      const formatted = dateValue && !Number.isNaN(dateValue.getTime())
-        ? dateValue.toLocaleDateString()
-        : String(field.date ?? "");
-      return { label: String(field.label ?? ""), value: formatted };
-    });
-    const amounts = typedData.amounts?.map((field) => {
-      const amountLabel = field.currency ? `${field.currency} ${field.value}` : `${field.value}`;
-      return { label: String(field.label ?? ""), value: amountLabel };
-    });
-    const legacyFields = typedData.fields?.map((field) => ({
+    const extracted =
+      typedData.extractedFields?.map((field) => ({
+        label: String(field.label ?? ""),
+        value: String(field.value ?? ""),
+      })) ?? [];
+    const legacy = typedData.fields?.map((field) => ({
       label: String(field.key ?? ""),
-      value:
-        String(
-          field.valueText ??
-            field.valueNumber ??
-            field.valueDate ??
-            field.value ??
-            ""
-        ),
-    }));
-    return [...(extracted ?? []), ...(dates ?? []), ...(amounts ?? []), ...(legacyFields ?? [])].filter(
-      (field) => field.label && field.value
-    );
-  }, [document?.extractData]);
-  const notes = (document as (DocumentDTO & { notes?: string | null }) | null)?.notes ?? null;
+      value: String(field.valueText ?? field.value ?? ""),
+    })) ?? [];
+    return [...extracted, ...legacy];
+  })();
+
+  return [...fields, ...legacyFields].filter((field) => field.label && field.value);
+};
+
+const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPreviewProps) => {
+  const [activeTab, setActiveTab] = useState<"preview" | "fields" | "text">("preview");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [showOcr, setShowOcr] = useState(false);
+
+  const fields = useMemo(() => buildFieldList(document), [document]);
+  const isPdf = document?.mimeType === "application/pdf";
+  const status = document?.status ?? "UPLOADED";
+  const statusLabel = formatStatus(status);
+  const badgeClass = statusStyles[status] ?? "bg-slate-100 text-slate-600";
+  const rawText = document?.rawText ?? "";
 
   useEffect(() => {
     setActiveTab("preview");
+    setShowOcr(false);
   }, [document?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPreview = async () => {
+      if (!document || document.status !== "READY") {
+        setPreviewUrl(null);
+        setPreviewError(null);
+        return;
+      }
+      setIsPreviewLoading(true);
+      setPreviewError(null);
+      try {
+        const url = await fetchDocumentPreviewUrl(document.id);
+        if (isMounted) {
+          setPreviewUrl((prev) => {
+            if (prev) {
+              URL.revokeObjectURL(prev);
+            }
+            return url;
+          });
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setPreviewError("Preview not available yet.");
+          setPreviewUrl(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsPreviewLoading(false);
+        }
+      }
+    };
+
+    void fetchPreview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [document]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   if (!document) {
     return (
@@ -97,31 +146,45 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
   const createdAtLabel = document.createdAt
     ? new Date(document.createdAt).toLocaleDateString()
     : "—";
-  const statusLabel = document.status ?? "Processing";
-  const tabOptions: Array<{ id: "preview" | "fields" | "notes"; label: string }> = [
-    { id: "preview", label: "Preview" },
-    { id: "fields", label: "Extracted fields" },
-  ];
 
-  if (notes) {
-    tabOptions.push({ id: "notes", label: "Notes" });
-  }
+  const processedAtLabel = document.processedAt
+    ? new Date(document.processedAt).toLocaleString()
+    : "Not processed yet";
+
+  const ocrWordCount = rawText ? rawText.trim().split(/\s+/).length : 0;
 
   return (
     <div className="space-y-4 rounded-[32px] border border-zinc-200/70 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Document</p>
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">
-            {statusLabel} · {createdAtLabel}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>
+              {statusLabel}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">{createdAtLabel}</p>
+          {document.processingError ? (
+            <p className="text-xs text-rose-500">{document.processingError}</p>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {status === "FAILED" && onRetryProcessing ? (
+            <Button size="sm" variant="outline" onClick={onRetryProcessing}>
+              Retry processing
+            </Button>
+          ) : null}
+          {actions}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {tabOptions.map((tab) => (
+        {[
+          { id: "preview", label: "Preview" },
+          { id: "fields", label: "Extracted fields" },
+          { id: "text", label: "Text (OCR)" },
+        ].map((tab) => (
           <button
             key={tab.id}
             className={
@@ -129,7 +192,7 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
                 ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
                 : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
             }
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setActiveTab(tab.id as "preview" | "fields" | "text")}
             type="button"
           >
             {tab.label}
@@ -139,56 +202,38 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
 
       {activeTab === "preview" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
-          {fileUrl ? (
+          {status !== "READY" ? (
+            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+              Preview not ready yet.
+            </div>
+          ) : isPreviewLoading ? (
+            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] bg-zinc-50/70 text-sm text-slate-500">
+              Loading preview…
+            </div>
+          ) : previewError ? (
+            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+              {previewError}
+            </div>
+          ) : previewUrl ? (
             isPdf ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-500">PDF preview</p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={pageNumber <= 1}
-                      onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
-                    >
-                      <ChevronLeft className="h-3 w-3" />
-                    </Button>
-                    <span className="text-xs text-slate-500">
-                      Page {pageNumber} of {numPages}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={pageNumber >= numPages}
-                      onClick={() => setPageNumber((prev) => Math.min(numPages, prev + 1))}
-                    >
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
-                  <Document
-                    file={fileUrl}
-                    onLoadSuccess={(info) => {
-                      setNumPages(info.numPages);
-                      setPageNumber(1);
-                    }}
-                  >
-                    <Page pageNumber={pageNumber} width={520} />
-                  </Document>
-                </div>
+              <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
+                <iframe
+                  title="PDF preview"
+                  src={previewUrl}
+                  className="h-[520px] w-full rounded-2xl"
+                />
               </div>
             ) : (
               <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
                 <img
-                  src={fileUrl}
-                  alt={document.title ?? document.fileName ?? "Document preview"}
+                  src={previewUrl}
+                  alt={title}
                   className="max-h-[520px] rounded-2xl object-contain"
                 />
               </div>
             )
           ) : (
-            <div className="flex h-[420px] items-center justify-center rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
               Preview unavailable.
             </div>
           )}
@@ -197,11 +242,27 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
 
       {activeTab === "fields" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
-          <p className="text-xs text-slate-500">Key details found in this document</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
+              <p className="text-xs text-slate-500">Key details found in this document</p>
+            </div>
+            {fields.length === 0 && onRetryProcessing ? (
+              <Button size="sm" variant="outline" onClick={onRetryProcessing}>
+                Re-run extraction
+              </Button>
+            ) : null}
+          </div>
+          {document.sensitiveDetected ? (
+            <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-xs text-amber-700">
+              Sensitive document detected. Extracted fields are limited.
+            </div>
+          ) : null}
           {fields.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">
-              No key details found yet. Ask a question to explore this document.
+              {status === "PROCESSING" || status === "UPLOADED"
+                ? "Fields will appear after processing finishes."
+                : "No key details found yet."}
             </p>
           ) : (
             <div className="mt-4 space-y-2 text-sm text-slate-600">
@@ -219,12 +280,35 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
         </div>
       ) : null}
 
-      {activeTab === "notes" ? (
-        <div className="rounded-[28px] border border-zinc-200/70 bg-white p-5 text-sm text-slate-600 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Notes</p>
-          <p className="mt-3 whitespace-pre-wrap text-xs text-slate-500">
-            {notes ?? "No notes yet."}
-          </p>
+      {activeTab === "text" ? (
+        <div className="rounded-[28px] border border-zinc-200/70 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Text (OCR)</p>
+              <p className="text-xs text-slate-500">
+                {ocrWordCount} words · Processed {processedAtLabel}
+              </p>
+            </div>
+          </div>
+          {!showOcr ? (
+            <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-xs text-amber-700">
+              <p>May contain sensitive text. Click to reveal.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => setShowOcr(true)}
+              >
+                Show OCR
+              </Button>
+            </div>
+          ) : rawText ? (
+            <pre className="mt-4 max-h-[360px] whitespace-pre-wrap rounded-2xl bg-zinc-50 p-4 text-xs text-slate-600">
+              {rawText}
+            </pre>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">No OCR text available yet.</p>
+          )}
         </div>
       ) : null}
     </div>

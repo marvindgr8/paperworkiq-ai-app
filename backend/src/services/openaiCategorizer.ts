@@ -80,7 +80,8 @@ export const categorizeDocumentWithOpenAI = async (
   const systemPrompt =
     "You are categorizing personal documents into short, human-friendly categories. " +
     "Prefer 1–2 words such as Council Tax, Energy, Banking, Healthcare, Housing, Insurance, " +
-    "School, Employment, Subscriptions, Legal, Other. If unsure, pick Other. " +
+    "School, Employment, Subscriptions, Legal. " +
+    "If unsure, pick a broad but specific category label rather than inventing a new one. " +
     "Avoid creating overly-specific categories.";
 
   const baseMessages = [

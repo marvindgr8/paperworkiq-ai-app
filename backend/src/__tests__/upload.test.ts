@@ -3,14 +3,9 @@ import { describe, it, expect, afterAll, vi } from "vitest";
 import { createApp } from "../app.js";
 import { prisma } from "../lib/prisma.js";
 
-vi.mock("../services/ocrService.js", () => ({
-  extractTextFromImage: vi.fn().mockResolvedValue("Invoice total 120"),
-  extractTextFromPdf: vi.fn().mockResolvedValue({ text: "Invoice total 120", pages: ["Page 1"] }),
-  detectSensitiveContent: vi.fn().mockReturnValue({ matched: false }),
-}));
-
-vi.mock("../services/extractionService.js", () => ({
-  enqueueExtraction: vi.fn(),
+vi.mock("../services/documentProcessing.js", () => ({
+  enqueueDocumentProcessing: vi.fn(),
+  computeDocumentFileHash: vi.fn().mockResolvedValue("hash-123"),
 }));
 
 const app = createApp();
@@ -71,41 +66,8 @@ describe("document uploads", () => {
       });
 
     expect(uploadResponse.status).toBe(201);
-    expect(uploadResponse.body.doc.fileUrl).toBeDefined();
+    expect(uploadResponse.body.doc.fileHash).toBe("hash-123");
     expect(uploadResponse.body.doc.status).toBe("PROCESSING");
-
-    await cleanupUser(email);
-  });
-
-  it("rejects sensitive uploads", async () => {
-    const { detectSensitiveContent } = await import("../services/ocrService.js");
-    vi.mocked(detectSensitiveContent).mockReturnValueOnce({
-      matched: true,
-      reason: "Contains a password",
-    });
-
-    const email = `sensitive-${Date.now()}@example.com`;
-
-    const registerResponse = await request(app).post("/api/auth/register").send({
-      email,
-      password: "password123",
-      name: "Dana Upload",
-    });
-
-    expect(registerResponse.status).toBe(201);
-
-    const token = registerResponse.body.token as string;
-
-    const uploadResponse = await request(app)
-      .post("/api/documents/upload")
-      .set("Authorization", `Bearer ${token}`)
-      .attach("file", Buffer.from("fake"), {
-        filename: "secrets.png",
-        contentType: "image/png",
-      });
-
-    expect(uploadResponse.status).toBe(400);
-    expect(uploadResponse.body.error).toContain("Sensitive documents");
 
     await cleanupUser(email);
   });

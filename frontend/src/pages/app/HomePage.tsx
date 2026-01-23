@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  deleteDocument,
+  downloadDocumentFile,
   getDocument,
   listCategories,
   listDocuments,
+  reprocessDocument,
   type CategoryDTO,
   type DocumentDTO,
 } from "@/lib/api";
@@ -14,8 +17,11 @@ import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import { useAppGate } from "@/hooks/useAppGate";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 import DocumentPreview from "@/components/documents/DocumentPreview";
+import DocumentActionsMenu from "@/components/documents/DocumentActionsMenu";
 import AppHeader from "@/components/app/AppHeader";
 import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Toast from "@/components/ui/Toast";
 
 const HomePage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
@@ -26,10 +32,13 @@ const HomePage = () => {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentDTO | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentDTO | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { docCount, isLoading, uploadSignal, openUpload } = useAppGate();
   const { setSelectedDocument } = useDocumentSelection();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
@@ -98,6 +107,22 @@ const HomePage = () => {
     }
   }, [setSelectedDocument, uploadFirst]);
 
+  useEffect(() => {
+    const state = location.state as { toast?: string } | null;
+    if (state?.toast) {
+      setToastMessage(state.toast);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
   const filteredDocs = useMemo(() => {
     return documents.filter((doc) => {
       const title = (doc.title ?? doc.fileName ?? "Untitled").toLowerCase();
@@ -156,6 +181,39 @@ const HomePage = () => {
   const handleSelectDocument = (doc: DocumentDTO) => {
     setSelectedDocumentId(doc.id);
     setSelectedDocument(doc);
+  };
+
+  const duplicateHashes = useMemo(() => {
+    const counts = new Map<string, number>();
+    documents.forEach((doc) => {
+      if (doc.fileHash) {
+        counts.set(doc.fileHash, (counts.get(doc.fileHash) ?? 0) + 1);
+      }
+    });
+    return new Set(
+      Array.from(counts.entries())
+        .filter(([, count]) => count > 1)
+        .map(([hash]) => hash)
+    );
+  }, [documents]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    try {
+      const response = await deleteDocument(deleteTarget.id);
+      if (response.ok) {
+        setDocuments((prev) => prev.filter((doc) => doc.id !== deleteTarget.id));
+        if (selectedDocumentId === deleteTarget.id) {
+          setSelectedDocumentId(null);
+          setSelectedDocument(null);
+          setPreviewDoc(null);
+        }
+      }
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   return (
@@ -247,6 +305,11 @@ const HomePage = () => {
                   documents={filteredDocs}
                   onSelect={handleSelectDocument}
                   onOpen={(doc) => navigate(`/app/doc/${doc.id}`)}
+                  onDelete={(doc) => setDeleteTarget(doc)}
+                  onDownload={(doc) => {
+                    void downloadDocumentFile(doc.id, doc.fileName ?? undefined);
+                  }}
+                  duplicateHashes={duplicateHashes}
                 />
               )}
             </div>
@@ -258,6 +321,13 @@ const HomePage = () => {
                 ) : (
                   <DocumentPreview
                     document={previewDoc}
+                    onRetryProcessing={
+                      previewDoc
+                        ? () => {
+                            void reprocessDocument(previewDoc.id);
+                          }
+                        : undefined
+                    }
                     actions={
                       <>
                         <Button
@@ -282,6 +352,17 @@ const HomePage = () => {
                         >
                           <span className="text-sm font-semibold">Ask about this document</span>
                         </Button>
+                        {previewDoc ? (
+                          <DocumentActionsMenu
+                            onDelete={() => setDeleteTarget(previewDoc)}
+                            onDownload={() => {
+                              void downloadDocumentFile(
+                                previewDoc.id,
+                                previewDoc.fileName ?? undefined
+                              );
+                            }}
+                          />
+                        ) : null}
                       </>
                     }
                   />
@@ -300,6 +381,22 @@ const HomePage = () => {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete this document?"
+        description="This can’t be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+      {toastMessage ? (
+        <Toast
+          message={toastMessage}
+          onDismiss={() => {
+            setToastMessage(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 };
