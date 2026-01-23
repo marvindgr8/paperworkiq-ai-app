@@ -103,7 +103,7 @@ const ChatHome = () => {
   return (
     <div className="flex h-full flex-col">
       <AppHeader
-        title="PaperworkIQ Chat"
+        title="Chat"
         subtitle="Ask anything about your documents, bills, and records."
         actions={
           <>
