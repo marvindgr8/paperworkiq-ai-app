@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, StickyNote, Table2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatThread from "@/components/chat/ChatThread";
@@ -8,6 +7,7 @@ import { getDocument, type DocumentDTO } from "@/lib/api";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import type { ChatMessageDTO } from "@/types/chat";
+import DocumentPreview from "@/components/documents/DocumentPreview";
 
 const promptChips = [
   "Summarise this document",
@@ -16,20 +16,11 @@ const promptChips = [
   "Highlight important dates",
 ];
 
-const previewTabs = [
-  { key: "preview", label: "Preview", icon: FileText },
-  { key: "fields", label: "Extracted fields", icon: Table2 },
-  { key: "notes", label: "Notes", icon: StickyNote },
-] as const;
-
-type PreviewTabKey = (typeof previewTabs)[number]["key"];
-
 const DocSplitViewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [document, setDocument] = useState<DocumentDTO | null>(null);
   const [messages, setMessages] = useState<ChatMessageDTO[]>([]);
-  const [activeTab, setActiveTab] = useState<PreviewTabKey>("preview");
   const [loadingDoc, setLoadingDoc] = useState(true);
   const { setSelectedDocument } = useDocumentSelection();
   const { isOpen: evidenceOpen, openEvidence, closeEvidence } = useEvidenceContext();
@@ -147,63 +138,13 @@ const DocSplitViewPage = () => {
                 Download
               </Button>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {previewTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  className={
-                    activeTab === tab.key
-                      ? "flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                      : "flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
-                  }
-                  onClick={() => setActiveTab(tab.key)}
-                  type="button"
-                >
-                  <tab.icon className="h-3 w-3" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {loadingDoc ? (
               <div className="h-full rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70" />
-            ) : activeTab === "preview" ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center">
-                <FileText className="h-6 w-6 text-slate-400" />
-                <div>
-                  <p className="text-sm font-medium text-slate-700">Preview placeholder</p>
-                  <p className="text-xs text-slate-500">
-                    PDF preview and pages will appear here once processing is ready.
-                  </p>
-                </div>
-              </div>
-            ) : activeTab === "fields" ? (
-              <div className="rounded-[32px] border border-zinc-200/70 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <div className="flex items-center justify-between">
-                    <span>Reference number</span>
-                    <span className="text-slate-400">—</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Due date</span>
-                    <span className="text-slate-400">—</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Amount</span>
-                    <span className="text-slate-400">—</span>
-                  </div>
-                </div>
-              </div>
             ) : (
-              <div className="rounded-[32px] border border-zinc-200/70 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Notes</p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Add reminders or context for this document soon.
-                </p>
-              </div>
+              <DocumentPreview document={document} />
             )}
           </div>
         </div>

@@ -63,24 +63,34 @@ describe("app routes", () => {
     expect(screen.getByText("Upload your first document to get started.")).toBeInTheDocument();
   });
 
-  it("navigates to /app/doc/:id when a document row is clicked", async () => {
+  it("shows a document preview when a document row is clicked", async () => {
     mockDocCount = 1;
     const doc: DocumentDTO = {
       id: "doc-123",
       title: "Council tax reminder",
       fileName: "council.pdf",
+      mimeType: "image/png",
+      fileUrl: "/uploads/test.png",
       status: "READY",
       createdAt: new Date().toISOString(),
     };
     listDocuments.mockResolvedValue({ ok: true, docs: [doc] });
-    getDocument.mockResolvedValue({ ok: true, doc });
+    getDocument.mockResolvedValue({
+      ok: true,
+      doc: {
+        ...doc,
+        rawText: "Due date 2024-01-01",
+        extractData: { fields: [{ key: "Due date", valueText: "2024-01-01" }] },
+      },
+    });
 
     renderApp("/app");
 
     const row = await screen.findByText("Council tax reminder");
     fireEvent.click(row.closest("button") ?? row);
 
-    expect(await screen.findByText("Ask AI about this document")).toBeInTheDocument();
+    expect(await screen.findByText("Extracted fields")).toBeInTheDocument();
+    expect(screen.getByText("Due date")).toBeInTheDocument();
   });
 
   it("renders global chat at /app/chat", async () => {

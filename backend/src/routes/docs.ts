@@ -1,10 +1,15 @@
 import { Router } from "express";
+import path from "node:path";
+import fs from "node:fs/promises";
+import crypto from "node:crypto";
+import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAuth.js";
 import { ensureWorkspaceAccess, getAccessibleWorkspace } from "../lib/workspace.js";
-import { enqueueCategorization } from "../jobs/categorizationQueue.js";
+import { detectSensitiveContent, extractTextFromImage, extractTextFromPdf } from "../services/ocrService.js";
+import { enqueueExtraction } from "../services/extractionService.js";
 
 export const docsRouter = Router();
 
@@ -21,6 +26,22 @@ const getQueryValue = (value: string | string[] | undefined) => {
   }
   return value;
 };
+
+const uploadDir = path.join(process.cwd(), "uploads");
+
+await fs.mkdir(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${crypto.randomUUID()}${ext}`);
+  },
+});
+
+const upload = multer({ storage });
 
 docsRouter.use(requireAuth);
 
@@ -53,7 +74,83 @@ docsRouter.post(
       },
     });
 
-    enqueueCategorization(doc.id);
+    res.status(201).json({ ok: true, doc });
+  })
+);
+
+docsRouter.post(
+  "/upload",
+  upload.single("file"),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const workspace = await getAccessibleWorkspace(
+      userId,
+      getQueryValue(req.query.workspaceId)
+    );
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ ok: false, error: "File is required" });
+    }
+
+    const isImage = file.mimetype.startsWith("image/");
+    const isPdf = file.mimetype === "application/pdf";
+
+    if (!isImage && !isPdf) {
+      await fs.unlink(file.path);
+      return res.status(400).json({ ok: false, error: "Unsupported file type" });
+    }
+
+    let rawText = "";
+    try {
+      rawText = isImage
+        ? await extractTextFromImage(file.path)
+        : await extractTextFromPdf(file.path);
+    } catch (error) {
+      await fs.unlink(file.path);
+      throw error;
+    }
+
+    const sensitiveMatch = detectSensitiveContent(rawText);
+    if (sensitiveMatch.matched) {
+      await fs.unlink(file.path);
+      return res.status(400).json({
+        ok: false,
+        error:
+          "Sensitive documents (passwords, security codes, or account secrets) are not allowed.",
+        reason: sensitiveMatch.reason,
+      });
+    }
+
+    const fileUrl = `/uploads/${file.filename}`;
+    const previewImageUrl = isImage ? fileUrl : null;
+
+    const doc = await prisma.document.create({
+      data: {
+        userId,
+        workspaceId: workspace.id,
+        title: file.originalname,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        storageKey: file.filename,
+        fileUrl,
+        previewImageUrl,
+        rawText,
+        status: "PROCESSING",
+        aiStatus: "PENDING",
+      },
+      include: { category: { select: { id: true, name: true } } },
+    });
+
+    enqueueExtraction(doc.id);
 
     res.status(201).json({ ok: true, doc });
   })
@@ -89,7 +186,18 @@ docsRouter.get(
     const docs = await prisma.document.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: { category: { select: { id: true, name: true } } },
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        mimeType: true,
+        status: true,
+        aiStatus: true,
+        createdAt: true,
+        previewImageUrl: true,
+        fileUrl: true,
+        category: { select: { id: true, name: true } },
+      },
     });
 
     res.json({ ok: true, docs });

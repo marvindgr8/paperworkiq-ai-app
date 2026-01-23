@@ -17,6 +17,9 @@ const cleanupUser = async (email: string) => {
   });
   const workspaceIds = workspaces.map((workspace) => workspace.id);
 
+  await prisma.chatCitation.deleteMany({
+    where: { message: { is: { session: { is: { userId: user.id } } } } },
+  });
   await prisma.chatMessage.deleteMany({ where: { session: { is: { userId: user.id } } } });
   await prisma.chatSession.deleteMany({ where: { userId: user.id } });
   await prisma.extractedField.deleteMany({ where: { document: { is: { userId: user.id } } } });

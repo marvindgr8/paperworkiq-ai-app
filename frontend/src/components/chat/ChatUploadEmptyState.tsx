@@ -3,8 +3,8 @@ import Button from "@/components/ui/Button";
 import { useAppGate } from "@/hooks/useAppGate";
 
 const examplePrompts = [
-  "When is my council tax due?",
-  "Summarise my latest energy bill.",
+  "When is my next payment due?",
+  "Summarise my latest statement.",
   "Find documents that need action.",
 ];
 

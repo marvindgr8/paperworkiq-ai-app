@@ -105,9 +105,14 @@ export interface DocumentDTO {
   id: string;
   title?: string | null;
   fileName?: string | null;
+  mimeType?: string | null;
   status: string;
   aiStatus?: string | null;
   category?: CategoryDTO | null;
+  fileUrl?: string | null;
+  previewImageUrl?: string | null;
+  rawText?: string | null;
+  extractData?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -136,16 +141,13 @@ export const getDocumentCount = async () => {
   return response.json();
 };
 
-export const createDocument = async (payload: {
-  title?: string;
-  fileName?: string;
-  mimeType?: string;
-  sizeBytes?: number;
-}) => {
-  const response = await fetch(`${baseUrl}/api/docs`, {
+export const uploadDocument = async (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${baseUrl}/api/documents/upload`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(payload),
+    headers: { ...authHeaders() },
+    body: formData,
   });
   return response.json();
 };

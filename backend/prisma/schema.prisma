@@ -105,12 +105,16 @@ model Document {
   mimeType      String?
   sizeBytes     Int?
   storageKey    String?
+  fileUrl       String?
+  previewImageUrl String?
   status        DocumentStatus    @default(UPLOADED)
   aiStatus      DocumentAiStatus  @default(PENDING)
   aiConfidence  Float?
   aiMetaJson    String?           @db.LongText
   rawText       String?           @db.LongText
+  extractData   Json?
   fields        ExtractedField[]
+  citations     ChatCitation[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -153,7 +157,23 @@ model ChatMessage {
   session   ChatSession @relation(fields: [sessionId], references: [id])
   role      ChatRole
   content   String    @db.LongText
+  citations ChatCitation[]
   createdAt DateTime  @default(now())
 
   @@index([sessionId])
+}
+
+model ChatCitation {
+  id         String   @id @default(cuid())
+  messageId  String
+  documentId String
+  page       Int?
+  field      String?
+  snippet    String?  @db.LongText
+  createdAt  DateTime @default(now())
+  message    ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([documentId])
 }

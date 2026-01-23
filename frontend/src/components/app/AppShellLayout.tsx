@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Sparkles } from "lucide-react";
 import AppSidebar from "@/components/app/AppSidebar";
 import EvidenceDrawer from "@/components/app/EvidenceDrawer";
@@ -13,6 +13,7 @@ import clsx from "clsx";
 
 const AppShellLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedDocument, setSelectedDocument] = useState<DocumentDTO | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -46,6 +47,14 @@ const AppShellLayout = () => {
     await refetch();
     setUploadSignal((prev) => prev + 1);
   };
+
+  const uploadFirst = !isLoading && count === 0;
+
+  useEffect(() => {
+    if (uploadFirst && location.pathname !== "/app/home") {
+      navigate("/app/home", { replace: true });
+    }
+  }, [location.pathname, navigate, uploadFirst]);
 
   return (
     <AppGateContext.Provider value={gateContextValue}>
