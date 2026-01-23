@@ -117,7 +117,7 @@ describe("app routes", () => {
     mockDocCount = 1;
     renderApp("/app/chat");
 
-    expect(await screen.findByText("PaperworkIQ Chat")).toBeInTheDocument();
+    expect(await screen.findByText("Chat")).toBeInTheDocument();
     expect(
       screen.getByText("Ask anything about your documents, bills, and records.")
     ).toBeInTheDocument();
