@@ -30,12 +30,13 @@ describe("DocumentPreview", () => {
       fileUrl: "/uploads/invoice.png",
       status: "READY",
       createdAt: new Date().toISOString(),
-      extractData: { fields: [{ key: "Total", valueText: "$120" }] },
+      extractData: { extractedFields: [{ label: "Total", value: "$120" }] },
     };
 
     render(<DocumentPreview document={doc} />);
 
     expect(screen.getByText("Extracted fields")).toBeInTheDocument();
+    expect(screen.getByText("Key details found in this document")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("$120")).toBeInTheDocument();
   });

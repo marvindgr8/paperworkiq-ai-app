@@ -30,9 +30,7 @@ const resolveFileUrl = (fileUrl?: string | null) => {
 const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
   const [numPages, setNumPages] = useState(1);
   const [pageNumber, setPageNumber] = useState(1);
-  const [activeTab, setActiveTab] = useState<"preview" | "fields" | "ocr" | "notes">(
-    "preview"
-  );
+  const [activeTab, setActiveTab] = useState<"preview" | "fields" | "notes">("preview");
 
   const fileUrl = useMemo(() => resolveFileUrl(document?.fileUrl), [document?.fileUrl]);
   const isPdf = document?.mimeType === "application/pdf";
@@ -41,18 +39,41 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
     if (!data || typeof data !== "object") {
       return [];
     }
-    const rawFields = (data as { fields?: Array<Record<string, unknown>> }).fields ?? [];
-    return rawFields
-      .map((field) => ({
-        key: String(field.key ?? ""),
-        value:
+    const typedData = data as {
+      extractedFields?: Array<{ label?: string; value?: string }>;
+      importantDates?: Array<{ label?: string; date?: string }>;
+      amounts?: Array<{ label?: string; value?: number; currency?: string }>;
+      fields?: Array<Record<string, unknown>>;
+    };
+    const extracted = typedData.extractedFields?.map((field) => ({
+      label: String(field.label ?? ""),
+      value: String(field.value ?? ""),
+    }));
+    const dates = typedData.importantDates?.map((field) => {
+      const dateValue = field.date ? new Date(field.date) : null;
+      const formatted = dateValue && !Number.isNaN(dateValue.getTime())
+        ? dateValue.toLocaleDateString()
+        : String(field.date ?? "");
+      return { label: String(field.label ?? ""), value: formatted };
+    });
+    const amounts = typedData.amounts?.map((field) => {
+      const amountLabel = field.currency ? `${field.currency} ${field.value}` : `${field.value}`;
+      return { label: String(field.label ?? ""), value: amountLabel };
+    });
+    const legacyFields = typedData.fields?.map((field) => ({
+      label: String(field.key ?? ""),
+      value:
+        String(
           field.valueText ??
-          field.valueNumber ??
-          field.valueDate ??
-          field.value ??
-          "",
-      }))
-      .filter((field) => field.key && field.value);
+            field.valueNumber ??
+            field.valueDate ??
+            field.value ??
+            ""
+        ),
+    }));
+    return [...(extracted ?? []), ...(dates ?? []), ...(amounts ?? []), ...(legacyFields ?? [])].filter(
+      (field) => field.label && field.value
+    );
   }, [document?.extractData]);
   const notes = (document as (DocumentDTO & { notes?: string | null }) | null)?.notes ?? null;
 
@@ -77,10 +98,9 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
     ? new Date(document.createdAt).toLocaleDateString()
     : "—";
   const statusLabel = document.status ?? "Processing";
-  const tabOptions: Array<{ id: "preview" | "fields" | "ocr" | "notes"; label: string }> = [
+  const tabOptions: Array<{ id: "preview" | "fields" | "notes"; label: string }> = [
     { id: "preview", label: "Preview" },
     { id: "fields", label: "Extracted fields" },
-    { id: "ocr", label: "OCR" },
   ];
 
   if (notes) {
@@ -146,7 +166,7 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
                     </Button>
                   </div>
                 </div>
-                <div className="flex justify-center">
+                <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
                   <Document
                     file={fileUrl}
                     onLoadSuccess={(info) => {
@@ -159,7 +179,7 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
                 </div>
               </div>
             ) : (
-              <div className="flex justify-center">
+              <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
                 <img
                   src={fileUrl}
                   alt={document.title ?? document.fileName ?? "Document preview"}
@@ -178,27 +198,24 @@ const DocumentPreview = ({ document, actions }: DocumentPreviewProps) => {
       {activeTab === "fields" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
+          <p className="text-xs text-slate-500">Key details found in this document</p>
           {fields.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No extracted fields yet.</p>
+            <p className="mt-3 text-sm text-slate-500">
+              No key details found yet. Ask a question to explore this document.
+            </p>
           ) : (
             <div className="mt-4 space-y-2 text-sm text-slate-600">
               {fields.map((field) => (
-                <div key={`${field.key}-${field.value}`} className="flex items-center justify-between">
-                  <span>{field.key}</span>
+                <div
+                  key={`${field.label}-${field.value}`}
+                  className="flex items-center justify-between"
+                >
+                  <span>{field.label}</span>
                   <span className="text-slate-400">{String(field.value)}</span>
                 </div>
               ))}
             </div>
           )}
-        </div>
-      ) : null}
-
-      {activeTab === "ocr" ? (
-        <div className="rounded-[28px] border border-zinc-200/70 bg-white p-5 text-sm text-slate-600 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">OCR text</p>
-          <p className="mt-3 whitespace-pre-wrap text-xs text-slate-500">
-            {document.rawText ?? "No OCR text available."}
-          </p>
         </div>
       ) : null}
 

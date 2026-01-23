@@ -278,8 +278,12 @@ const HomePage = () => {
                               navigate(`/app/doc/${selectedDocumentId}`);
                             }
                           }}
+                          className="h-auto items-start gap-1 px-4 py-2 text-left"
                         >
-                          Open workspace
+                          <span className="text-sm font-semibold">Ask about this document</span>
+                          <span className="text-xs text-slate-200">
+                            Get answers grounded in this file
+                          </span>
                         </Button>
                       </>
                     }

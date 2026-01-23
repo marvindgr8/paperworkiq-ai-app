@@ -15,6 +15,7 @@ const createSessionSchema = z.object({
 
 const messageSchema = z.object({
   content: z.string().min(1),
+  documentId: z.string().optional(),
 });
 
 const getWorkspaceIdFromQuery = (workspaceId: string | string[] | undefined) => {
@@ -154,18 +155,71 @@ chatRouter.post(
       },
     });
 
-    const docs = await prisma.document.findMany({
-      where: { workspaceId: session.workspaceId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        fileName: true,
-        rawText: true,
-        extractData: true,
-      },
-    });
+    type DocumentContext = {
+      id: string;
+      title: string | null;
+      fileName: string | null;
+      ocrText: string | null;
+      ocrPages: unknown;
+      extractData: unknown;
+      mimeType: string | null;
+    };
+
+    const docs: DocumentContext[] = data.documentId
+      ? []
+      : await prisma.document.findMany({
+          where: { workspaceId: session.workspaceId },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            title: true,
+            fileName: true,
+            ocrText: true,
+            ocrPages: true,
+            extractData: true,
+            mimeType: true,
+          },
+        });
+
+    let scopedDocument: DocumentContext | null = null;
+
+    if (data.documentId) {
+      const document = await prisma.document.findUnique({
+        where: { id: data.documentId },
+        select: {
+          id: true,
+          title: true,
+          fileName: true,
+          ocrText: true,
+          ocrPages: true,
+          extractData: true,
+          mimeType: true,
+          workspaceId: true,
+        },
+      });
+
+      if (!document) {
+        return res.status(404).json({ ok: false, error: "Document not found" });
+      }
+
+      const canAccessDoc = await ensureWorkspaceAccess(userId, document.workspaceId);
+      if (!canAccessDoc || document.workspaceId !== session.workspaceId) {
+        return res.status(403).json({ ok: false, error: "Workspace access denied" });
+      }
+
+      scopedDocument = {
+        id: document.id,
+        title: document.title,
+        fileName: document.fileName,
+        ocrText: document.ocrText,
+        ocrPages: document.ocrPages,
+        extractData: document.extractData,
+        mimeType: document.mimeType,
+      };
+
+      docs.push(scopedDocument);
+    }
 
     const keywords = Array.from(
       new Set(
@@ -187,6 +241,53 @@ chatRouter.post(
       return text.slice(start, end).trim();
     };
 
+    const normalizePages = (pages: unknown): string[] => {
+      if (!Array.isArray(pages)) {
+        return [];
+      }
+      return pages.filter((page): page is string => typeof page === "string");
+    };
+
+    const findFieldMatch = (
+      extractData: unknown,
+      keywordList: string[]
+    ): { label: string; value: string } | null => {
+      if (!extractData || typeof extractData !== "object") {
+        return null;
+      }
+      const data = extractData as {
+        extractedFields?: Array<{ label?: string; value?: string }>;
+        importantDates?: Array<{ label?: string; date?: string }>;
+        amounts?: Array<{ label?: string; value?: number; currency?: string }>;
+      };
+      const candidates: Array<{ label: string; value: string }> = [];
+      data.extractedFields?.forEach((field) => {
+        if (field.label && field.value) {
+          candidates.push({ label: field.label, value: field.value });
+        }
+      });
+      data.importantDates?.forEach((field) => {
+        if (field.label && field.date) {
+          candidates.push({ label: field.label, value: field.date });
+        }
+      });
+      data.amounts?.forEach((field) => {
+        if (field.label && typeof field.value === "number") {
+          const value = `${field.currency ?? ""} ${field.value}`.trim();
+          candidates.push({ label: field.label, value });
+        }
+      });
+
+      const lowerKeywords = keywordList.map((keyword) => keyword.toLowerCase());
+      return (
+        candidates.find((field) => {
+          const label = field.label.toLowerCase();
+          const value = field.value.toLowerCase();
+          return lowerKeywords.some((keyword) => label.includes(keyword) || value.includes(keyword));
+        }) ?? null
+      );
+    };
+
     const citations: Array<{
       documentId: string;
       documentTitle: string;
@@ -197,28 +298,59 @@ chatRouter.post(
 
     for (const doc of docs) {
       const title = doc.title ?? doc.fileName ?? "Document";
-      const rawText = doc.rawText ?? "";
+      const ocrText = doc.ocrText ?? "";
+      const pages = normalizePages(doc.ocrPages);
       let snippet: string | null = null;
-      for (const keyword of keywords) {
-        snippet = buildSnippet(rawText, keyword);
-        if (snippet) {
-          break;
-        }
-      }
-      if (!snippet && doc.extractData) {
-        const extractString = JSON.stringify(doc.extractData);
-        for (const keyword of keywords) {
-          snippet = buildSnippet(extractString, keyword);
+      let page: number | undefined = undefined;
+
+      if (pages.length > 0) {
+        for (let i = 0; i < pages.length; i += 1) {
+          for (const keyword of keywords) {
+            snippet = buildSnippet(pages[i], keyword);
+            if (snippet) {
+              page = i + 1;
+              break;
+            }
+          }
           if (snippet) {
             break;
           }
         }
       }
-      if (snippet) {
+
+      if (!snippet) {
+        for (const keyword of keywords) {
+          snippet = buildSnippet(ocrText, keyword);
+          if (snippet) {
+            break;
+          }
+        }
+      }
+
+      if (!snippet) {
+        const matchedField = findFieldMatch(doc.extractData, keywords);
+        if (matchedField) {
+          snippet = `${matchedField.label}: ${matchedField.value}`;
+          citations.push({
+            documentId: doc.id,
+            documentTitle: title,
+            field: matchedField.label,
+            snippet,
+          });
+        }
+      }
+
+      for (const keyword of keywords) {
+        snippet = snippet ?? buildSnippet(ocrText, keyword);
+        if (snippet) {
+          break;
+        }
+      }
+      if (snippet && !citations.some((citation) => citation.documentId === doc.id)) {
         citations.push({
           documentId: doc.id,
           documentTitle: title,
-          page: 1,
+          page,
           snippet,
         });
       }
@@ -227,12 +359,25 @@ chatRouter.post(
       }
     }
 
+    const isDocumentScoped = Boolean(data.documentId);
+
     let responseText =
       citations.length === 0
-        ? "I couldn't find a matching passage in your documents yet."
+        ? isDocumentScoped
+          ? "I couldn't find a matching passage in this document yet."
+          : "I couldn't find a matching passage in your documents yet."
         : "I’ve pulled the most relevant passages and will answer with citations.";
 
-    if (env.OPENAI_API_KEY && citations.length > 0) {
+    const selectedDocument = scopedDocument ?? docs[0];
+    const documentTitle = selectedDocument?.title ?? selectedDocument?.fileName ?? "Document";
+    const ocrText = selectedDocument?.ocrText ?? "";
+    const extractData = selectedDocument?.extractData ?? {};
+
+    if (
+      env.OPENAI_API_KEY &&
+      selectedDocument &&
+      (isDocumentScoped ? Boolean(ocrText || citations.length > 0) : citations.length > 0)
+    ) {
       const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
       const context = citations
         .map(
@@ -245,17 +390,39 @@ chatRouter.post(
 
       const response = await client.chat.completions.create({
         model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Answer the user using only the provided snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
-          },
-          {
-            role: "user",
-            content: `Question: ${data.content}\n\nSnippets:\n${context}`,
-          },
-        ],
+        messages: isDocumentScoped
+          ? [
+              {
+                role: "system",
+                content:
+                  "You are a document-specific assistant. Use only the provided document data. If the answer is not in the document, say you are not sure. Cite evidence when possible. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
+              },
+              {
+                role: "user",
+                content: [
+                  `Question: ${data.content}`,
+                  `Document: ${documentTitle} (id: ${selectedDocument.id})`,
+                  "Extracted fields:",
+                  JSON.stringify(extractData).slice(0, 4000),
+                  "OCR text:",
+                  ocrText.slice(0, 6000),
+                  context ? `Snippets:\n${context}` : "",
+                ]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              },
+            ]
+          : [
+              {
+                role: "system",
+                content:
+                  "Answer the user using only the provided snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
+              },
+              {
+                role: "user",
+                content: `Question: ${data.content}\n\nSnippets:\n${context}`,
+              },
+            ],
         temperature: 0.2,
         max_tokens: 400,
       });

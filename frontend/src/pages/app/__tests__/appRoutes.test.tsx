@@ -98,8 +98,8 @@ describe("app routes", () => {
       ok: true,
       doc: {
         ...doc,
-        rawText: "Due date 2024-01-01",
-        extractData: { fields: [{ key: "Due date", valueText: "2024-01-01" }] },
+        ocrText: "Due date 2024-01-01",
+        extractData: { importantDates: [{ label: "Due date", date: "2024-01-01" }] },
       },
     });
 
@@ -140,8 +140,8 @@ describe("app routes", () => {
       ok: true,
       doc: {
         ...doc,
-        rawText: "Lease term is 12 months",
-        extractData: { fields: [{ key: "Term", valueText: "12 months" }] },
+        ocrText: "Lease term is 12 months",
+        extractData: { extractedFields: [{ label: "Term", value: "12 months" }] },
       },
     });
 
@@ -150,7 +150,7 @@ describe("app routes", () => {
     const row = await screen.findByText("Lease agreement");
     fireEvent.click(row);
 
-    const openButton = await screen.findByText("Open workspace");
+    const openButton = await screen.findByText("Ask about this document");
     fireEvent.click(openButton);
 
     expect(await screen.findByText("Document workspace")).toBeInTheDocument();

@@ -15,7 +15,7 @@ vi.mock("openai", () => ({
             {
               message: {
                 content:
-                  '{"fields":[{"key":"Total","valueNumber":120,"confidence":0.9,"sourceSnippet":"Total due 120","sourcePage":1}]}',
+                  '{"documentType":"Invoice","summary":"Invoice summary","extractedFields":[{"label":"Total","value":"120","confidence":0.9,"source":"Total due 120"}],"importantDates":[],"amounts":[{"label":"Total","value":120,"currency":"USD"}]}',
               },
             },
           ],
@@ -62,7 +62,7 @@ describe("runExtraction", () => {
         userId: user.id,
         workspaceId: workspace.id,
         title: "Invoice",
-        rawText: "Total due 120",
+        ocrText: "Total due 120",
       },
     });
 

@@ -112,6 +112,7 @@ export const sendChatMessage = async (
 export interface DocumentDTO {
   id: string;
   title?: string | null;
+  type?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
   status: string;
@@ -119,7 +120,9 @@ export interface DocumentDTO {
   category?: CategoryDTO | null;
   fileUrl?: string | null;
   previewImageUrl?: string | null;
-  rawText?: string | null;
+  summary?: string | null;
+  ocrText?: string | null;
+  ocrPages?: string[] | null;
   extractData?: Record<string, unknown> | null;
   createdAt: string;
 }

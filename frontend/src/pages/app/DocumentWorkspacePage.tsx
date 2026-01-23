@@ -13,9 +13,9 @@ import { getDocument, sendChatMessage, type DocumentDTO } from "@/lib/api";
 import type { ChatMessageDTO } from "@/types/chat";
 
 const promptChips = [
-  "Summarise",
-  "What’s the deadline?",
-  "Highlight important dates",
+  "Summarise this document",
+  "What is this file?",
+  "Are there any important dates?",
   "What action is required?",
 ];
 
@@ -209,6 +209,7 @@ const DocumentWorkspacePage = () => {
           <ChatComposer
             onSend={handleSend}
             helperText="Questions stay scoped to this document."
+            autoFocus
           />
         </div>
       </div>

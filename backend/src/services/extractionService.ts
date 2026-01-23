@@ -4,19 +4,31 @@ import { prisma } from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { runCategorization } from "./categorizationService.js";
 
-const fieldSchema = z.object({
-  key: z.string().min(1),
-  valueText: z.string().optional(),
-  valueNumber: z.number().optional(),
-  valueDate: z.string().optional(),
-  confidence: z.number().optional(),
-  sourceSnippet: z.string().optional(),
-  sourcePage: z.number().optional(),
+const extractedFieldSchema = z.object({
+  label: z.string().min(1),
+  value: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+  source: z.string().optional(),
+});
+
+const importantDateSchema = z.object({
+  label: z.string().min(1),
+  date: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+const amountSchema = z.object({
+  label: z.string().min(1),
+  value: z.number(),
+  currency: z.string().min(1),
 });
 
 const extractionSchema = z.object({
-  fields: z.array(fieldSchema).default([]),
+  documentType: z.string().optional(),
   summary: z.string().optional(),
+  extractedFields: z.array(extractedFieldSchema).default([]),
+  importantDates: z.array(importantDateSchema).default([]),
+  amounts: z.array(amountSchema).default([]),
 });
 
 const createClient = () => {
@@ -26,12 +38,15 @@ const createClient = () => {
   return new OpenAI({ apiKey: env.OPENAI_API_KEY });
 };
 
-const buildExtractionPrompt = (text: string) => {
+const buildExtractionPrompt = (text: string, metadata: Record<string, string | number | null>) => {
   return [
     "Extract structured fields from the OCR text.",
-    "Return STRICT JSON with shape: { fields: [{ key, valueText, valueNumber, valueDate, confidence, sourceSnippet, sourcePage }], summary }.",
-    "Only include fields that are supported by the text. Use ISO dates (YYYY-MM-DD) for valueDate.",
-    "If unsure, omit the field. Keep sourceSnippet short (<= 160 chars).",
+    "Return STRICT JSON with shape:",
+    "{ documentType, summary, extractedFields: [{ label, value, confidence, source }], importantDates: [{ label, date, confidence }], amounts: [{ label, value, currency }] }.",
+    "Only include fields that are supported by the text. Use ISO dates (YYYY-MM-DD) for date.",
+    "If unsure, omit the field. Keep source short (<= 160 chars).",
+    "Document metadata:",
+    JSON.stringify(metadata),
     "OCR Text:",
     text.slice(0, 6000),
   ].join("\n");
@@ -76,15 +91,19 @@ export const runExtraction = async (documentId: string) => {
     data: { status: "PROCESSING" },
   });
 
-  if (!document.rawText || !document.rawText.trim()) {
+  if (!document.ocrText || !document.ocrText.trim()) {
     await prisma.document.update({
       where: { id: document.id },
-      data: { status: "READY", extractData: { fields: [] } },
+      data: { status: "READY", extractData: { extractedFields: [], importantDates: [], amounts: [] } },
     });
     return { ok: true, documentId: document.id };
   }
 
-  let extractionResult: z.infer<typeof extractionSchema> = { fields: [] };
+  let extractionResult: z.infer<typeof extractionSchema> = {
+    extractedFields: [],
+    importantDates: [],
+    amounts: [],
+  };
 
   try {
     const client = createClient();
@@ -96,7 +115,15 @@ export const runExtraction = async (documentId: string) => {
           content:
             "You extract structured data from OCR text. Output strict JSON only. Do not include markdown.",
         },
-        { role: "user", content: buildExtractionPrompt(document.rawText) },
+        {
+          role: "user",
+          content: buildExtractionPrompt(document.ocrText, {
+            title: document.title ?? null,
+            fileName: document.fileName ?? null,
+            mimeType: document.mimeType ?? null,
+            sizeBytes: document.sizeBytes ?? null,
+          }),
+        },
       ],
       temperature: 0.2,
       max_tokens: 600,
@@ -118,18 +145,32 @@ export const runExtraction = async (documentId: string) => {
 
   await prisma.extractedField.deleteMany({ where: { documentId: document.id } });
 
-  if (extractionResult.fields.length > 0) {
+  const extractedFieldRows = [
+    ...extractionResult.extractedFields.map((field) => ({
+      documentId: document.id,
+      key: field.label,
+      valueText: field.value ?? null,
+      confidence: field.confidence ?? null,
+      sourceSnippet: field.source ?? null,
+    })),
+    ...extractionResult.importantDates.map((field) => ({
+      documentId: document.id,
+      key: field.label,
+      valueDate: toDateValue(field.date),
+      valueText: field.date ?? null,
+      confidence: field.confidence ?? null,
+    })),
+    ...extractionResult.amounts.map((field) => ({
+      documentId: document.id,
+      key: field.label,
+      valueNumber: field.value,
+      valueText: field.currency ?? null,
+    })),
+  ];
+
+  if (extractedFieldRows.length > 0) {
     await prisma.extractedField.createMany({
-      data: extractionResult.fields.map((field) => ({
-        documentId: document.id,
-        key: field.key,
-        valueText: field.valueText ?? null,
-        valueNumber: field.valueNumber ?? null,
-        valueDate: toDateValue(field.valueDate),
-        confidence: field.confidence ?? null,
-        sourceSnippet: field.sourceSnippet ?? null,
-        sourcePage: field.sourcePage ?? null,
-      })),
+      data: extractedFieldRows,
     });
   }
 
@@ -138,6 +179,8 @@ export const runExtraction = async (documentId: string) => {
     data: {
       status: "READY",
       extractData: extractionResult,
+      type: extractionResult.documentType ?? null,
+      summary: extractionResult.summary ?? null,
     },
   });
 
