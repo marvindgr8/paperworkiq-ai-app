@@ -78,7 +78,7 @@ export const categorizeDocumentWithOpenAI = async (
 ): Promise<OpenAICategorizationResult> => {
   const client = createClient();
   const systemPrompt =
-    "You are categorizing personal paperwork documents into short, human-friendly categories. " +
+    "You are categorizing personal documents into short, human-friendly categories. " +
     "Prefer 1–2 words such as Council Tax, Energy, Banking, Healthcare, Housing, Insurance, " +
     "School, Employment, Subscriptions, Legal, Other. If unsure, pick Other. " +
     "Avoid creating overly-specific categories.";

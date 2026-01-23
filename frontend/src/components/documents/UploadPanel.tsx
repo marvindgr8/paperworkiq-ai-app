@@ -12,10 +12,9 @@ const UploadPanel = () => {
           <UploadCloud className="h-6 w-6 text-slate-700" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-slate-900">Upload paperwork</h2>
+          <h2 className="text-2xl font-semibold text-slate-900">Upload documents</h2>
           <p className="text-sm text-slate-500">
-            Drop PDFs, scans, or photos here. We’ll organize and prep them for AI answers with
-            citations.
+            Drop PDFs, scans, or photos here. We’ll organize them for AI answers with citations.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">

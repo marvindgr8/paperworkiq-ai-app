@@ -19,7 +19,7 @@ const ChatUploadEmptyState = () => {
           Upload your first document to get started.
         </h1>
         <p className="text-sm text-slate-500">
-          PaperworkIQ only answers using your uploaded paperwork — with citations.
+          PaperworkIQ only answers using your uploaded documents — with citations.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Button size="lg" onClick={openUpload}>

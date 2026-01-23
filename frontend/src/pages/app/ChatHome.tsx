@@ -75,7 +75,7 @@ const ChatHome = () => {
     const pendingMessage: ChatMessageDTO = {
       id: pendingId,
       role: "ASSISTANT",
-      content: "Thinking through your paperwork…",
+      content: "Thinking through your documents…",
       createdAt: timestamp,
     };
 
@@ -103,7 +103,7 @@ const ChatHome = () => {
   const headerDescription = useMemo(() => {
     if (messages.length === 0) {
       return uploadFirst
-        ? "Upload paperwork to unlock answers with citations."
+        ? "Upload documents to unlock answers with citations."
         : "Ask anything about your documents, bills, and records.";
     }
     return "Answers are anchored to the exact document and page.";
@@ -159,7 +159,7 @@ const ChatHome = () => {
         helperText={
           uploadFirst
             ? "Upload at least one document to ask questions."
-            : "Responses are grounded in your uploaded paperwork only. Sources appear when PaperworkIQ cites a document."
+            : "Responses are grounded in your uploaded documents only. Sources appear when PaperworkIQ cites a document."
         }
       />
     </div>

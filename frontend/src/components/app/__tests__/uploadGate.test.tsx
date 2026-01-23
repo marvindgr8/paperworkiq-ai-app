@@ -46,6 +46,6 @@ describe("upload-first gating", () => {
   it("shows chat prompts and evidence details when docCount is greater than 0", () => {
     renderWithProviders({ docCount: 1 });
 
-    expect(screen.getByText("Search across your paperwork.")).toBeInTheDocument();
+    expect(screen.getByText("Search across your documents.")).toBeInTheDocument();
   });
 });

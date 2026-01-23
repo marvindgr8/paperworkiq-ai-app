@@ -9,7 +9,7 @@ const ChatEmptyState = () => {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <div className="max-w-xl space-y-6">
-        <h1 className="text-3xl font-semibold text-slate-900">Search across your paperwork.</h1>
+        <h1 className="text-3xl font-semibold text-slate-900">Search across your documents.</h1>
         <p className="text-sm text-slate-500">
           Ask a question and PaperworkIQ will surface the exact documents, pages, and passages
           behind the answer.
