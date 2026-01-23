@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 
 vi.mock("../services/ocrService.js", () => ({
   extractTextFromImage: vi.fn().mockResolvedValue("Invoice total 120"),
-  extractTextFromPdf: vi.fn().mockResolvedValue("Invoice total 120"),
+  extractTextFromPdf: vi.fn().mockResolvedValue({ text: "Invoice total 120", pages: ["Page 1"] }),
   detectSensitiveContent: vi.fn().mockReturnValue({ matched: false }),
 }));
 

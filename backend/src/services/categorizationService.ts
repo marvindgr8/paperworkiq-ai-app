@@ -12,11 +12,11 @@ const normalizeCategoryName = (name: string) => {
   return titleCased.slice(0, 30);
 };
 
-const buildSnippet = (rawText?: string | null) => {
-  if (!rawText) {
+const buildSnippet = (ocrText?: string | null) => {
+  if (!ocrText) {
     return null;
   }
-  return rawText.slice(0, 500);
+  return ocrText.slice(0, 500);
 };
 
 export const runCategorization = async (documentId: string) => {
@@ -46,7 +46,7 @@ export const runCategorization = async (documentId: string) => {
       filename: document.fileName ?? document.title ?? "Untitled",
       uploadedNote: document.title ?? null,
       issuer: null,
-      extractedTextSnippet: buildSnippet(document.rawText),
+      extractedTextSnippet: buildSnippet(document.ocrText),
       existingCategories: existingCategories.map((category) => category.name),
     });
 

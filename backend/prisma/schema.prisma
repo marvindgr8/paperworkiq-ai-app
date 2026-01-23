@@ -101,6 +101,7 @@ model Document {
   workspace     Workspace         @relation(fields: [workspaceId], references: [id])
   category      Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   title         String?
+  type          String?
   fileName      String?
   mimeType      String?
   sizeBytes     Int?
@@ -109,9 +110,12 @@ model Document {
   previewImageUrl String?
   status        DocumentStatus    @default(UPLOADED)
   aiStatus      DocumentAiStatus  @default(PENDING)
+  summary       String?           @db.LongText
   aiConfidence  Float?
   aiMetaJson    String?           @db.LongText
   rawText       String?           @db.LongText
+  ocrText       String?           @db.LongText
+  ocrPages      Json?
   extractData   Json?
   fields        ExtractedField[]
   citations     ChatCitation[]

@@ -37,8 +37,25 @@ export const extractTextFromImage = async (filePath: string) => {
   return result.data.text ?? "";
 };
 
-export const extractTextFromPdf = async (filePath: string) => {
+export interface PdfTextResult {
+  text: string;
+  pages: string[];
+}
+
+export const extractTextFromPdf = async (filePath: string): Promise<PdfTextResult> => {
   const buffer = await fs.readFile(filePath);
-  const parsed = await pdf(buffer);
-  return parsed.text ?? "";
+  const pages: string[] = [];
+  const parsed = await pdf(buffer, {
+    pagerender: async (pageData) => {
+      const textContent = await pageData.getTextContent();
+      const pageText = textContent.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+        .trim();
+      pages.push(pageText);
+      return pageText;
+    },
+  });
+
+  return { text: parsed.text ?? "", pages };
 };

@@ -108,17 +108,22 @@ docsRouter.post(
       return res.status(400).json({ ok: false, error: "Unsupported file type" });
     }
 
-    let rawText = "";
+    let ocrText = "";
+    let ocrPages: string[] | null = null;
     try {
-      rawText = isImage
-        ? await extractTextFromImage(file.path)
-        : await extractTextFromPdf(file.path);
+      if (isImage) {
+        ocrText = await extractTextFromImage(file.path);
+      } else {
+        const pdfText = await extractTextFromPdf(file.path);
+        ocrText = pdfText.text;
+        ocrPages = pdfText.pages;
+      }
     } catch (error) {
       await fs.unlink(file.path);
       throw error;
     }
 
-    const sensitiveMatch = detectSensitiveContent(rawText);
+    const sensitiveMatch = detectSensitiveContent(ocrText);
     if (sensitiveMatch.matched) {
       await fs.unlink(file.path);
       return res.status(400).json({
@@ -143,7 +148,8 @@ docsRouter.post(
         storageKey: file.filename,
         fileUrl,
         previewImageUrl,
-        rawText,
+        ocrText,
+        ocrPages,
         status: "PROCESSING",
         aiStatus: "PENDING",
       },
