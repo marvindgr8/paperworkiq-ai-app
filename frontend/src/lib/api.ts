@@ -140,6 +140,17 @@ export interface DocumentDTO {
   createdAt: string;
 }
 
+export interface DocumentSearchResult {
+  id: string;
+  title?: string | null;
+  fileName?: string | null;
+  status: string;
+  category?: CategoryDTO | null;
+  categoryLabel?: string | null;
+  createdAt: string;
+  previewThumbUrl?: string | null;
+}
+
 export const listDocuments = async (options?: { categoryId?: string }) => {
   const url = new URL(`${baseUrl}/api/docs`);
   if (options?.categoryId) {
@@ -160,6 +171,18 @@ export const listCategories = async () => {
 
 export const getDocumentCount = async () => {
   const response = await fetch(`${baseUrl}/api/docs/count`, {
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};
+
+export const searchDocuments = async (options: { query: string; limit?: number }) => {
+  const url = new URL(`${baseUrl}/api/documents/search`);
+  url.searchParams.set("q", options.query);
+  if (options.limit) {
+    url.searchParams.set("limit", String(options.limit));
+  }
+  const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
   });
   return response.json();
