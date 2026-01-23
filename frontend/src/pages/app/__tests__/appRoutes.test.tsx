@@ -78,7 +78,8 @@ describe("app routes", () => {
 
     renderApp("/app/home");
 
-    expect(await screen.findByText("Choose files")).toBeInTheDocument();
+    expect(await screen.findByText("Recent documents")).toBeInTheDocument();
+    expect(screen.queryByText("Choose files")).not.toBeInTheDocument();
     expect(screen.getByText("Select a document to preview")).toBeInTheDocument();
   });
 
@@ -113,8 +114,8 @@ describe("app routes", () => {
     const row = await screen.findByText("Council tax reminder");
     fireEvent.click(row);
 
-    expect(await screen.findByText("Preview")).toBeInTheDocument();
-    expect(screen.getByText("Extracted fields")).toBeInTheDocument();
+    expect(await screen.findByText("Open document")).toBeInTheDocument();
+    expect(screen.queryByText("Extracted fields")).not.toBeInTheDocument();
     expect(screen.queryByText("Choose files")).not.toBeInTheDocument();
   });
 
@@ -160,10 +161,10 @@ describe("app routes", () => {
     const row = await screen.findByText("Lease agreement");
     fireEvent.click(row);
 
-    const openButton = await screen.findByText("Ask about this document");
+    const openButton = await screen.findByText("Open document");
     fireEvent.click(openButton);
 
-    expect(await screen.findByText("Document workspace")).toBeInTheDocument();
+    expect(await screen.findByText("Document view")).toBeInTheDocument();
     expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
   });
 
@@ -181,7 +182,7 @@ describe("app routes", () => {
 
     renderApp("/app/doc/doc-789");
 
-    expect(await screen.findByText("Document workspace")).toBeInTheDocument();
+    expect(await screen.findByText("Document view")).toBeInTheDocument();
     expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeInTheDocument();
   });

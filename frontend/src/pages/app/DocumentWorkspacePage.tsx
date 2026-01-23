@@ -140,13 +140,12 @@ const DocumentWorkspacePage = () => {
   return (
     <div className="flex h-full flex-col">
       <AppHeader
-        title="Document workspace"
+        title="Document view"
         subtitle="Ask questions and get answers grounded in this document."
         actions={
           <>
-            <Button size="sm" variant="outline" onClick={() => navigate("/app")}
-            >
-              Back to Home
+            <Button size="sm" variant="outline" onClick={() => navigate("/app")}>
+              Back to Documents
             </Button>
             {showEvidenceToggle ? (
               <Button
@@ -188,6 +187,9 @@ const DocumentWorkspacePage = () => {
                     onDownload={() => {
                       void downloadDocumentFile(document.id, document.fileName ?? undefined);
                     }}
+                    onReprocess={() => {
+                      void reprocessDocument(document.id);
+                    }}
                   />
                 ) : null
               }
@@ -225,7 +227,10 @@ const DocumentWorkspacePage = () => {
 
               {messages.length === 0 ? (
                 <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
-                  Ask a question to start a document-specific conversation.
+                  <p>Ask a question to start a document-specific conversation.</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Every answer is grounded in this document with page-level evidence.
+                  </p>
                 </div>
               ) : (
                 <div className="h-[420px]">

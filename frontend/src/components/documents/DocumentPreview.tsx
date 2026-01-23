@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
+import clsx from "clsx";
 import type { DocumentDTO } from "@/lib/api";
 import { fetchDocumentPreviewUrl } from "@/lib/api";
 import Button from "@/components/ui/Button";
@@ -9,6 +10,10 @@ interface DocumentPreviewProps {
   document: DocumentDTO | null;
   actions?: ReactNode;
   onRetryProcessing?: () => void;
+  showTabs?: boolean;
+  showHeader?: boolean;
+  size?: "default" | "compact";
+  className?: string;
 }
 
 const statusStyles: Record<string, string> = {
@@ -62,7 +67,15 @@ const buildFieldList = (document: DocumentDTO | null) => {
   return [...fields, ...legacyFields].filter((field) => field.label && field.value);
 };
 
-const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPreviewProps) => {
+const DocumentPreview = ({
+  document,
+  actions,
+  onRetryProcessing,
+  showTabs = true,
+  showHeader = true,
+  size = "default",
+  className,
+}: DocumentPreviewProps) => {
   const [activeTab, setActiveTab] = useState<"preview" | "fields" | "text">("preview");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -132,7 +145,13 @@ const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPrevi
 
   if (!document) {
     return (
-      <div className="flex h-full flex-col items-center justify-center rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center">
+      <div
+        className={clsx(
+          "flex h-full flex-col items-center justify-center rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-center",
+          size === "compact" ? "px-4 py-6" : "px-6 py-10",
+          className
+        )}
+      >
         <FileText className="h-6 w-6 text-slate-400" />
         <p className="mt-2 text-sm font-medium text-slate-700">Select a document</p>
         <p className="text-xs text-slate-500">
@@ -154,93 +173,140 @@ const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPrevi
   const ocrWordCount = rawText ? rawText.trim().split(/\s+/).length : 0;
 
   return (
-    <div className="space-y-4 rounded-[32px] border border-zinc-200/70 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Document</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>
-              {statusLabel}
-            </span>
+    <div
+      className={clsx(
+        "rounded-[32px] border border-zinc-200/70 bg-white shadow-sm",
+        size === "compact" ? "p-4" : "p-5",
+        showHeader || showTabs ? "space-y-4" : "",
+        className
+      )}
+    >
+      {showHeader ? (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Document</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>
+                {statusLabel}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">Uploaded {createdAtLabel}</p>
+            {document.processingError ? (
+              <p className="text-xs text-rose-500">{document.processingError}</p>
+            ) : null}
           </div>
-          <p className="text-xs text-slate-500">{createdAtLabel}</p>
-          {document.processingError ? (
-            <p className="text-xs text-rose-500">{document.processingError}</p>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {status === "FAILED" && onRetryProcessing ? (
+              <Button size="sm" variant="outline" onClick={onRetryProcessing}>
+                Retry processing
+              </Button>
+            ) : null}
+            {actions}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {status === "FAILED" && onRetryProcessing ? (
-            <Button size="sm" variant="outline" onClick={onRetryProcessing}>
-              Retry processing
-            </Button>
-          ) : null}
-          {actions}
+      ) : null}
+
+      {showTabs ? (
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "preview", label: "Preview" },
+            { id: "fields", label: "Extracted fields" },
+            { id: "text", label: "Text (OCR)" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className={
+                activeTab === tab.id
+                  ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                  : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
+              }
+              onClick={() => setActiveTab(tab.id as "preview" | "fields" | "text")}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
+      ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {[
-          { id: "preview", label: "Preview" },
-          { id: "fields", label: "Extracted fields" },
-          { id: "text", label: "Text (OCR)" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            className={
-              activeTab === tab.id
-                ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
-            }
-            onClick={() => setActiveTab(tab.id as "preview" | "fields" | "text")}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "preview" ? (
+      {!showTabs || activeTab === "preview" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
           {status !== "READY" ? (
-            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+            <div
+              className={clsx(
+                "flex items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500",
+                size === "compact" ? "h-40" : "min-h-[420px]"
+              )}
+            >
               Preview not ready yet.
             </div>
           ) : isPreviewLoading ? (
-            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] bg-zinc-50/70 text-sm text-slate-500">
+            <div
+              className={clsx(
+                "flex items-center justify-center rounded-[24px] bg-zinc-50/70 text-sm text-slate-500",
+                size === "compact" ? "h-40" : "min-h-[420px]"
+              )}
+            >
               Loading preview…
             </div>
           ) : previewError ? (
-            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+            <div
+              className={clsx(
+                "flex items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500",
+                size === "compact" ? "h-40" : "min-h-[420px]"
+              )}
+            >
               {previewError}
             </div>
           ) : previewUrl ? (
             isPdf ? (
-              <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
+              <div
+                className={clsx(
+                  "flex items-center justify-center rounded-[24px] bg-zinc-50/50 p-4",
+                  size === "compact" ? "h-40" : "min-h-[520px]"
+                )}
+              >
                 <iframe
                   title="PDF preview"
                   src={previewUrl}
-                  className="h-[520px] w-full rounded-2xl"
+                  className={clsx(
+                    "w-full rounded-2xl",
+                    size === "compact" ? "h-40" : "h-[520px]"
+                  )}
                 />
               </div>
             ) : (
-              <div className="flex min-h-[520px] items-center justify-center rounded-[24px] bg-zinc-50/50 p-4">
+              <div
+                className={clsx(
+                  "flex items-center justify-center rounded-[24px] bg-zinc-50/50 p-4",
+                  size === "compact" ? "h-40" : "min-h-[520px]"
+                )}
+              >
                 <img
                   src={previewUrl}
                   alt={title}
-                  className="max-h-[520px] rounded-2xl object-contain"
+                  className={clsx(
+                    "rounded-2xl object-contain",
+                    size === "compact" ? "h-40 w-full" : "max-h-[520px]"
+                  )}
                 />
               </div>
             )
           ) : (
-            <div className="flex min-h-[420px] items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500">
+            <div
+              className={clsx(
+                "flex items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500",
+                size === "compact" ? "h-40" : "min-h-[420px]"
+              )}
+            >
               Preview unavailable.
             </div>
           )}
         </div>
       ) : null}
 
-      {activeTab === "fields" ? (
+      {showTabs && activeTab === "fields" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -255,7 +321,7 @@ const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPrevi
           </div>
           {document.sensitiveDetected ? (
             <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-xs text-amber-700">
-              Sensitive document detected. Extracted fields are limited.
+              We extract only the most relevant fields for sensitive documents.
             </div>
           ) : null}
           {fields.length === 0 ? (
@@ -280,7 +346,7 @@ const DocumentPreview = ({ document, actions, onRetryProcessing }: DocumentPrevi
         </div>
       ) : null}
 
-      {activeTab === "text" ? (
+      {showTabs && activeTab === "text" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
