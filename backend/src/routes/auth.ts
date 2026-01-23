@@ -112,3 +112,11 @@ authRouter.get(
     res.json({ ok: true, user });
   })
 );
+
+authRouter.post(
+  "/logout",
+  requireAuth,
+  asyncHandler(async (_req: AuthenticatedRequest, res) => {
+    res.json({ ok: true });
+  })
+);

@@ -1,8 +1,8 @@
 const prompts = [
-  "When is my council tax due?",
+  "What is the due date on my latest notice?",
   "Find documents that need action.",
-  "Summarise my latest energy bill.",
-  "What’s this reference number about: CTX-1182?",
+  "Summarise the most recent statement.",
+  "What’s this reference number about: INV-1182?",
 ];
 
 const ChatEmptyState = () => {

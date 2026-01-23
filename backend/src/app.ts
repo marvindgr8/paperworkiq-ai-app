@@ -1,4 +1,5 @@
 import express from "express";
+import path from "node:path";
 import cors from "cors";
 import morgan from "morgan";
 import { healthRouter } from "./routes/health.js";
@@ -22,12 +23,14 @@ export const createApp = () => {
   );
   app.use(express.json({ limit: "1mb" }));
   app.use(morgan("dev"));
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   app.use("/api", healthRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/workspaces", workspacesRouter);
   app.use("/api/categories", categoriesRouter);
   app.use("/api/docs", docsRouter);
+  app.use("/api/documents", docsRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/ai", aiRouter);
 

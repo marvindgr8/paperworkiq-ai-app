@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
-import { createDocument } from "@/lib/api";
+import { uploadDocument } from "@/lib/api";
 
 interface UploadModalProps {
   open: boolean;
@@ -39,20 +39,11 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
     setError(null);
 
     try {
-      const results = await Promise.all(
-        files.map((file) =>
-          createDocument({
-            title: file.name,
-            fileName: file.name,
-            mimeType: file.type,
-            sizeBytes: file.size,
-          })
-        )
-      );
+      const results = await Promise.all(files.map((file) => uploadDocument(file)));
 
       const successCount = results.filter((result) => result.ok).length;
       if (successCount === 0) {
-        throw new Error("Upload endpoint not available yet.");
+        throw new Error(results[0]?.error ?? "Unable to upload documents.");
       }
 
       if (onUploaded) {
@@ -60,7 +51,7 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
       }
       onClose();
     } catch (uploadError) {
-      setError((uploadError as Error).message ?? "Upload coming soon.");
+      setError((uploadError as Error).message ?? "Unable to upload documents.");
     } finally {
       setIsSubmitting(false);
     }
@@ -99,6 +90,7 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
               className="hidden"
               type="file"
               multiple
+              accept="application/pdf,image/*"
               onChange={(event) => {
                 const nextFiles = Array.from(event.target.files ?? []);
                 setFiles(nextFiles);
@@ -122,7 +114,7 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
             </Button>
           </div>
           <p className="text-[11px] text-slate-400">
-            Uploads create a placeholder entry while processing is coming soon.
+            Uploads start OCR and AI extraction immediately after ingest.
           </p>
         </div>
       </div>

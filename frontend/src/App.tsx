@@ -5,7 +5,7 @@ import SignUp from "./pages/SignUp";
 import Teams from "./pages/Teams";
 import AppShellLayout from "./components/app/AppShellLayout";
 import ChatHome from "./pages/app/ChatHome";
-import InboxHomePage from "./pages/app/InboxHomePage";
+import HomePage from "./pages/app/HomePage";
 import ActionsPage from "./pages/app/ActionsPage";
 import SettingsPage from "./pages/app/SettingsPage";
 import DocSplitViewPage from "./pages/app/DocSplitViewPage";
@@ -19,7 +19,7 @@ const App = () => {
       <Route path="/teams" element={<Teams />} />
       <Route path="/app" element={<AppShellLayout />}>
         <Route index element={<Navigate to="/app/home" replace />} />
-        <Route path="home" element={<InboxHomePage />} />
+        <Route path="home" element={<HomePage />} />
         <Route path="inbox" element={<Navigate to="/app/home" replace />} />
         <Route path="doc/:id" element={<DocSplitViewPage />} />
         <Route path="chat" element={<ChatHome />} />

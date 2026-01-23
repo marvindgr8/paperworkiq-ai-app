@@ -1,7 +1,17 @@
 import request from "supertest";
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { createApp } from "../app.js";
 import { prisma } from "../lib/prisma.js";
+
+vi.mock("../services/ocrService.js", () => ({
+  extractTextFromImage: vi.fn().mockResolvedValue("Invoice total 120"),
+  extractTextFromPdf: vi.fn().mockResolvedValue("Invoice total 120"),
+  detectSensitiveContent: vi.fn().mockReturnValue({ matched: false }),
+}));
+
+vi.mock("../services/extractionService.js", () => ({
+  enqueueExtraction: vi.fn(),
+}));
 
 const app = createApp();
 
@@ -34,84 +44,68 @@ const cleanupUser = async (email: string) => {
   await prisma.user.delete({ where: { id: user.id } });
 };
 
-describe("chat sessions", () => {
+describe("document uploads", () => {
   afterAll(async () => {
     await prisma.$disconnect();
   });
 
-  it("requires auth", async () => {
-    const response = await request(app).get("/api/chat/sessions");
-    expect(response.status).toBe(401);
-  });
-
-  it("creates sessions in the current workspace", async () => {
-    const email = `chat-${Date.now()}@example.com`;
+  it("uploads an image and creates a document", async () => {
+    const email = `upload-${Date.now()}@example.com`;
 
     const registerResponse = await request(app).post("/api/auth/register").send({
       email,
       password: "password123",
-      name: "Jordan Lane",
+      name: "Dana Upload",
     });
 
     expect(registerResponse.status).toBe(201);
 
     const token = registerResponse.body.token as string;
-    const currentWorkspace = await request(app)
-      .get("/api/workspaces/current")
-      .set("Authorization", `Bearer ${token}`);
 
-    expect(currentWorkspace.status).toBe(200);
-
-    const createSessionResponse = await request(app)
-      .post("/api/chat/sessions")
+    const uploadResponse = await request(app)
+      .post("/api/documents/upload")
       .set("Authorization", `Bearer ${token}`)
-      .send({});
+      .attach("file", Buffer.from("fake"), {
+        filename: "invoice.png",
+        contentType: "image/png",
+      });
 
-    expect(createSessionResponse.status).toBe(201);
-    expect(createSessionResponse.body.session.id).toBeDefined();
-
-    const sessionId = createSessionResponse.body.session.id as string;
-    const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
-
-    expect(session?.workspaceId).toBe(currentWorkspace.body.workspace.id);
+    expect(uploadResponse.status).toBe(201);
+    expect(uploadResponse.body.doc.fileUrl).toBeDefined();
+    expect(uploadResponse.body.doc.status).toBe("PROCESSING");
 
     await cleanupUser(email);
   });
 
-  it("creates user and assistant messages", async () => {
-    const email = `messages-${Date.now()}@example.com`;
+  it("rejects sensitive uploads", async () => {
+    const { detectSensitiveContent } = await import("../services/ocrService.js");
+    vi.mocked(detectSensitiveContent).mockReturnValueOnce({
+      matched: true,
+      reason: "Contains a password",
+    });
+
+    const email = `sensitive-${Date.now()}@example.com`;
 
     const registerResponse = await request(app).post("/api/auth/register").send({
       email,
       password: "password123",
-      name: "Taylor Bloom",
+      name: "Dana Upload",
     });
 
     expect(registerResponse.status).toBe(201);
 
     const token = registerResponse.body.token as string;
-    const sessionResponse = await request(app)
-      .post("/api/chat/sessions")
+
+    const uploadResponse = await request(app)
+      .post("/api/documents/upload")
       .set("Authorization", `Bearer ${token}`)
-      .send({});
+      .attach("file", Buffer.from("fake"), {
+        filename: "secrets.png",
+        contentType: "image/png",
+      });
 
-    expect(sessionResponse.status).toBe(201);
-    const sessionId = sessionResponse.body.session.id as string;
-
-    const messageResponse = await request(app)
-      .post(`/api/chat/sessions/${sessionId}/messages`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ content: "Summarise my energy bill" });
-
-    expect(messageResponse.status).toBe(201);
-    expect(messageResponse.body.message.role).toBe("ASSISTANT");
-
-    const messagesResponse = await request(app)
-      .get(`/api/chat/sessions/${sessionId}/messages`)
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(messagesResponse.status).toBe(200);
-    expect(messagesResponse.body.messages).toHaveLength(2);
+    expect(uploadResponse.status).toBe(400);
+    expect(uploadResponse.body.error).toContain("Sensitive documents");
 
     await cleanupUser(email);
   });
