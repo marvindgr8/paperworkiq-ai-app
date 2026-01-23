@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, MoreHorizontal, Trash2 } from "lucide-react";
+import { Download, MoreHorizontal, RefreshCcw, Trash2 } from "lucide-react";
 
 interface DocumentActionsMenuProps {
   onDelete?: () => void;
   onDownload?: () => void;
+  onReprocess?: () => void;
 }
 
-const DocumentActionsMenu = ({ onDelete, onDownload }: DocumentActionsMenuProps) => {
+const DocumentActionsMenu = ({
+  onDelete,
+  onDownload,
+  onReprocess,
+}: DocumentActionsMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +58,21 @@ const DocumentActionsMenu = ({ onDelete, onDownload }: DocumentActionsMenuProps)
           className="absolute right-0 z-30 mt-2 w-40 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_14px_28px_rgba(15,23,42,0.12)]"
           role="menu"
         >
+          {onReprocess ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-zinc-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsOpen(false);
+                onReprocess?.();
+              }}
+            >
+              <RefreshCcw className="h-4 w-4 text-slate-500" />
+              Reprocess
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

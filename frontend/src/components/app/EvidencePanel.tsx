@@ -3,8 +3,9 @@ import { FileText, Quote, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
-import { fetchDocumentPreviewUrl, getDocument } from "@/lib/api";
+import { getDocument } from "@/lib/api";
 import type { DocumentDTO } from "@/lib/api";
+import DocumentPreview from "@/components/documents/DocumentPreview";
 
 interface EvidencePanelProps {
   className?: string;
@@ -16,15 +17,9 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
   const showSelectedDocument = Boolean(selectedDocument) && sources.length === 0;
   const selectedSource = sources.find((source) => source.id === selectedSourceId) ?? sources[0];
   const previewDocumentId = selectedSource?.documentId ?? selectedDocument?.id;
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
   const [evidenceDocument, setEvidenceDocument] = useState<DocumentDTO | null>(null);
   const [isDocumentLoading, setIsDocumentLoading] = useState(false);
   const activeDocument = showSelectedDocument ? selectedDocument : evidenceDocument;
-  const isPreviewReady = activeDocument ? activeDocument.status === "READY" : true;
-  const isPdf = activeDocument?.mimeType === "application/pdf";
 
   const activeTitle = useMemo(() => {
     if (selectedSource) {
@@ -35,44 +30,6 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
     }
     return "Evidence";
   }, [selectedSource, selectedDocument, showSelectedDocument]);
-
-  const fields = useMemo(() => {
-    if (!activeDocument) {
-      return [];
-    }
-    const primaryFields =
-      activeDocument.fields?.map((field) => ({
-        label: field.key,
-        value:
-          field.valueText ??
-          field.valueNumber?.toString() ??
-          field.valueDate ??
-          "",
-      })) ?? [];
-
-    const legacyFields = (() => {
-      const data = activeDocument.extractData;
-      if (!data || typeof data !== "object") {
-        return [];
-      }
-      const typedData = data as {
-        fields?: Array<Record<string, unknown>>;
-        extractedFields?: Array<{ label?: string; value?: string }>;
-      };
-      const extracted =
-        typedData.extractedFields?.map((field) => ({
-          label: String(field.label ?? ""),
-          value: String(field.value ?? ""),
-        })) ?? [];
-      const legacy = typedData.fields?.map((field) => ({
-        label: String(field.key ?? ""),
-        value: String(field.valueText ?? field.value ?? ""),
-      })) ?? [];
-      return [...extracted, ...legacy];
-    })();
-
-    return [...primaryFields, ...legacyFields].filter((field) => field.label && field.value);
-  }, [activeDocument]);
 
   useEffect(() => {
     let isMounted = true;
@@ -89,9 +46,9 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
       }
       setIsDocumentLoading(true);
       try {
-        const document = await getDocument(previewDocumentId);
+        const response = await getDocument(previewDocumentId);
         if (isMounted) {
-          setEvidenceDocument(document);
+          setEvidenceDocument(response.ok ? (response.doc ?? null) : null);
         }
       } catch (error) {
         if (isMounted) {
@@ -110,63 +67,6 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
       isMounted = false;
     };
   }, [previewDocumentId, selectedDocument, showSelectedDocument]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPreview = async () => {
-      if (!previewDocumentId) {
-        setPreviewUrl(null);
-        setPreviewError(null);
-        setImageFailed(false);
-        return;
-      }
-      if (!isPreviewReady) {
-        setPreviewUrl(null);
-        setPreviewError("Preview not ready yet.");
-        setImageFailed(false);
-        return;
-      }
-      setIsPreviewLoading(true);
-      setPreviewError(null);
-      setImageFailed(false);
-      try {
-        const url = await fetchDocumentPreviewUrl(previewDocumentId);
-        if (isMounted) {
-          setPreviewUrl((prev) => {
-            if (prev) {
-              URL.revokeObjectURL(prev);
-            }
-            return url;
-          });
-        } else {
-          URL.revokeObjectURL(url);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setPreviewError("Preview unavailable.");
-          setPreviewUrl(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsPreviewLoading(false);
-        }
-      }
-    };
-
-    void fetchPreview();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isPreviewReady, previewDocumentId]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
 
   return (
     <aside
@@ -201,33 +101,18 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
                   <FileText className="h-4 w-4" />
                   Document preview
                 </div>
-                {isPreviewLoading ? (
+                {isDocumentLoading ? (
                   <div className="flex h-40 items-center justify-center rounded-2xl bg-zinc-50 text-xs text-slate-500">
                     Loading preview…
                   </div>
-                ) : previewError ? (
-                  <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-zinc-200/70 bg-zinc-50 text-xs text-slate-500">
-                    {previewError}
-                  </div>
-                ) : previewUrl ? (
-                  isPdf || imageFailed ? (
-                    <iframe
-                      title="Document preview"
-                      src={previewUrl}
-                      className="h-40 w-full rounded-2xl bg-zinc-50"
-                    />
-                  ) : (
-                    <img
-                      src={previewUrl}
-                      alt={activeTitle}
-                      className="h-40 w-full rounded-2xl object-contain"
-                      onError={() => setImageFailed(true)}
-                    />
-                  )
                 ) : (
-                  <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-zinc-200/70 bg-zinc-50 text-xs text-slate-500">
-                    Preview unavailable.
-                  </div>
+                  <DocumentPreview
+                    document={activeDocument}
+                    showHeader={false}
+                    showTabs={false}
+                    size="compact"
+                    className="border-0 bg-transparent p-0 shadow-none"
+                  />
                 )}
               </div>
               <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
@@ -284,72 +169,26 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
                 <FileText className="h-4 w-4" />
                 Document preview
               </div>
-              {isPreviewLoading ? (
+              {isDocumentLoading ? (
                 <div className="flex h-40 items-center justify-center rounded-2xl bg-zinc-50 text-xs text-slate-500">
                   Loading preview…
                 </div>
-              ) : previewError ? (
-                <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-zinc-200/70 bg-zinc-50 text-xs text-slate-500">
-                  {previewError}
-                </div>
-              ) : previewUrl ? (
-                isPdf || imageFailed ? (
-                  <iframe
-                    title="Document preview"
-                    src={previewUrl}
-                    className="h-40 w-full rounded-2xl bg-zinc-50"
-                  />
-                ) : (
-                  <img
-                    src={previewUrl}
-                    alt={activeTitle}
-                    className="h-40 w-full rounded-2xl object-contain"
-                    onError={() => setImageFailed(true)}
-                  />
-                )
               ) : (
-                <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-zinc-200/70 bg-zinc-50 text-xs text-slate-500">
-                  Preview unavailable.
-                </div>
+                <DocumentPreview
+                  document={activeDocument}
+                  showHeader={false}
+                  showTabs={false}
+                  size="compact"
+                  className="border-0 bg-transparent p-0 shadow-none"
+                />
               )}
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <Quote className="h-4 w-4" />
-                Highlight
+                Highlights
               </div>
               <p className="rounded-2xl bg-zinc-50 px-3 py-2 text-xs text-slate-600">
                 {selectedSource?.snippet ?? "Select a citation to see the exact excerpt."}
               </p>
-            </div>
-
-            <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
-              <p className="text-xs text-slate-500">Key details found in this document</p>
-              {activeDocument?.sensitiveDetected ? (
-                <div className="mt-3 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700">
-                  Sensitive document detected. Extracted fields are limited.
-                </div>
-              ) : null}
-              {isDocumentLoading ? (
-                <p className="mt-3 text-sm text-slate-500">Loading extracted fields…</p>
-              ) : fields.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">
-                  {activeDocument?.status === "PROCESSING" || activeDocument?.status === "UPLOADED"
-                    ? "Fields will appear after processing finishes."
-                    : "No key details found yet."}
-                </p>
-              ) : (
-                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  {fields.map((field) => (
-                    <div
-                      key={`${field.label}-${field.value}`}
-                      className="flex items-center justify-between"
-                    >
-                      <span>{field.label}</span>
-                      <span className="text-slate-400">{String(field.value)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}

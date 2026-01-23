@@ -244,14 +244,12 @@ const HomePage = () => {
                 selectedDocumentId ? "hidden lg:flex" : "flex"
               }`}
             >
-              {!selectedDocumentId ? <UploadPanel /> : null}
-
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h2 className="text-base font-semibold text-slate-900">Recent documents</h2>
                     <p className="text-xs text-slate-500">
-                      Select any document to preview and review extracted fields.
+                      Select any document to preview and open the full view.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
@@ -321,6 +319,7 @@ const HomePage = () => {
                 ) : (
                   <DocumentPreview
                     document={previewDoc}
+                    showTabs={false}
                     onRetryProcessing={
                       previewDoc
                         ? () => {
@@ -350,7 +349,7 @@ const HomePage = () => {
                           }}
                           className="h-auto items-start gap-1 px-4 py-2 text-left"
                         >
-                          <span className="text-sm font-semibold">Ask about this document</span>
+                          <span className="text-sm font-semibold">Open document</span>
                         </Button>
                         {previewDoc ? (
                           <DocumentActionsMenu
@@ -360,6 +359,9 @@ const HomePage = () => {
                                 previewDoc.id,
                                 previewDoc.fileName ?? undefined
                               );
+                            }}
+                            onReprocess={() => {
+                              void reprocessDocument(previewDoc.id);
                             }}
                           />
                         ) : null}
@@ -373,7 +375,7 @@ const HomePage = () => {
                     <p className="text-sm font-medium text-slate-700">
                       Select a document to preview
                     </p>
-                    <p>Pick a document from the list to review details.</p>
+                    <p>Pick a document from the list to preview it here.</p>
                   </div>
                 </div>
               )}
