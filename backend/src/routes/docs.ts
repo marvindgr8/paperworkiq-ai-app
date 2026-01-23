@@ -190,6 +190,85 @@ docsRouter.get(
 );
 
 docsRouter.get(
+  "/search",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const workspace = await getAccessibleWorkspace(
+      userId,
+      getQueryValue(req.query.workspaceId)
+    );
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const query = getQueryValue(req.query.q)?.trim() ?? "";
+    if (query.length < 2) {
+      return res.json({ ok: true, docs: [] });
+    }
+
+    const limitValue = Number(getQueryValue(req.query.limit));
+    const limit = Number.isFinite(limitValue) ? Math.min(Math.max(limitValue, 1), 50) : 6;
+    const textFilter = { contains: query, mode: "insensitive" as const };
+    const orFilters = [
+      { title: textFilter },
+      { fileName: textFilter },
+      { categoryLabel: textFilter },
+      { category: { name: textFilter } },
+      { ocrText: textFilter },
+      { rawText: textFilter },
+      { fields: { some: { valueText: textFilter } } },
+    ];
+
+    const numericValue = Number(query);
+    if (!Number.isNaN(numericValue)) {
+      orFilters.push({ fields: { some: { valueNumber: numericValue } } });
+    }
+
+    const parsedDate = new Date(query);
+    if (!Number.isNaN(parsedDate.valueOf())) {
+      orFilters.push({ fields: { some: { valueDate: parsedDate } } });
+    }
+
+    const docs = await prisma.document.findMany({
+      where: {
+        workspaceId: workspace.id,
+        OR: orFilters,
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        status: true,
+        createdAt: true,
+        categoryLabel: true,
+        previewImageUrl: true,
+        category: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json({
+      ok: true,
+      docs: docs.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        fileName: doc.fileName,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        categoryLabel: doc.categoryLabel,
+        previewThumbUrl: doc.previewImageUrl,
+        category: doc.category,
+      })),
+    });
+  })
+);
+
+docsRouter.get(
   "/count",
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = req.userId;

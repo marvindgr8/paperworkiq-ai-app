@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   deleteDocument,
@@ -8,6 +7,7 @@ import {
   listCategories,
   listDocuments,
   reprocessDocument,
+  searchDocuments,
   type CategoryDTO,
   type DocumentDTO,
 } from "@/lib/api";
@@ -22,10 +22,12 @@ import AppHeader from "@/components/app/AppHeader";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Toast from "@/components/ui/Toast";
+import { useSidebarSearch } from "@/hooks/useSidebarSearch";
 
 const HomePage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<DocumentDTO[]>([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -36,15 +38,38 @@ const HomePage = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { docCount, isLoading, uploadSignal, openUpload } = useAppGate();
   const { setSelectedDocument } = useDocumentSelection();
+  const { query, setQuery } = useSidebarSearch();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const listRef = useRef<HTMLDivElement>(null);
   const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
     const categoryId = searchParams.get("categoryId");
     setActiveCategoryId(categoryId);
   }, [searchParams]);
+
+  useEffect(() => {
+    const urlQuery = searchParams.get("q") ?? "";
+    if (urlQuery !== query) {
+      setQuery(urlQuery);
+    }
+  }, [query, searchParams, setQuery]);
+
+  useEffect(() => {
+    setSearchParams(
+      (params) => {
+        if (query) {
+          params.set("q", query);
+        } else {
+          params.delete("q");
+        }
+        return params;
+      },
+      { replace: true }
+    );
+  }, [query, setSearchParams]);
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -109,8 +134,16 @@ const HomePage = () => {
 
   useEffect(() => {
     const state = location.state as { toast?: string } | null;
+    const focusResults = state?.focusResults;
     if (state?.toast) {
       setToastMessage(state.toast);
+    }
+    if (focusResults) {
+      window.requestAnimationFrame(() => {
+        listRef.current?.focus();
+      });
+    }
+    if (state?.toast || focusResults) {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
@@ -123,13 +156,58 @@ const HomePage = () => {
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setIsSearchLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    setIsSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await searchDocuments({ query: trimmed, limit: 50 });
+        if (!isActive) {
+          return;
+        }
+        setSearchResults(response.ok ? (response.docs ?? []) : []);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setSearchResults([]);
+      } finally {
+        if (isActive) {
+          setIsSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
   const filteredDocs = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) {
+      return documents;
+    }
     return documents.filter((doc) => {
       const title = (doc.title ?? doc.fileName ?? "Untitled").toLowerCase();
-      const matchesQuery = title.includes(query.toLowerCase());
-      return matchesQuery;
+      return title.includes(normalized);
     });
   }, [documents, query]);
+
+  const displayedDocs = useMemo(() => {
+    if (query.trim().length >= 2) {
+      return searchResults;
+    }
+    return filteredDocs;
+  }, [filteredDocs, query, searchResults]);
 
   const handleFilterChange = (categoryId: string | null) => {
     setActiveCategoryId(categoryId);
@@ -252,14 +330,8 @@ const HomePage = () => {
                       Select any document to preview and open the full view.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
-                    <Search className="h-4 w-4" />
-                    <input
-                      className="flex-1 bg-transparent text-sm outline-none"
-                      placeholder="Search documents"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                    />
+                  <div className="rounded-2xl border border-dashed border-zinc-200/70 bg-white px-4 py-3 text-xs text-slate-500">
+                    Use the sidebar search to filter documents.
                   </div>
                 </div>
 
@@ -294,22 +366,26 @@ const HomePage = () => {
                 ) : null}
               </div>
 
-              {filteredDocs.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
-                  {isFetching ? "Loading documents…" : "No matching documents yet."}
-                </div>
-              ) : (
-                <DocumentList
-                  documents={filteredDocs}
-                  onSelect={handleSelectDocument}
-                  onOpen={(doc) => navigate(`/app/doc/${doc.id}`)}
-                  onDelete={(doc) => setDeleteTarget(doc)}
-                  onDownload={(doc) => {
-                    void downloadDocumentFile(doc.id, doc.fileName ?? undefined);
-                  }}
-                  duplicateHashes={duplicateHashes}
-                />
-              )}
+              <div ref={listRef} tabIndex={-1} aria-label="Document results list">
+                {displayedDocs.length === 0 ? (
+                  <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
+                    {isFetching || isSearchLoading
+                      ? "Loading documents…"
+                      : "No matching documents yet."}
+                  </div>
+                ) : (
+                  <DocumentList
+                    documents={displayedDocs}
+                    onSelect={handleSelectDocument}
+                    onOpen={(doc) => navigate(`/app/doc/${doc.id}`)}
+                    onDelete={(doc) => setDeleteTarget(doc)}
+                    onDownload={(doc) => {
+                      void downloadDocumentFile(doc.id, doc.fileName ?? undefined);
+                    }}
+                    duplicateHashes={duplicateHashes}
+                  />
+                )}
+              </div>
             </div>
 
             <div className={`flex-1 ${selectedDocumentId ? "flex" : "hidden lg:flex"}`}>
