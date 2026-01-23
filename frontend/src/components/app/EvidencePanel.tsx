@@ -3,7 +3,8 @@ import { FileText, Quote, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
-import { fetchDocumentPreviewUrl } from "@/lib/api";
+import { fetchDocumentPreviewUrl, getDocument } from "@/lib/api";
+import type { DocumentDTO } from "@/lib/api";
 
 interface EvidencePanelProps {
   className?: string;
@@ -19,8 +20,11 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
-  const isPreviewReady = selectedDocument ? selectedDocument.status === "READY" : true;
-  const isPdf = selectedDocument?.mimeType === "application/pdf";
+  const [evidenceDocument, setEvidenceDocument] = useState<DocumentDTO | null>(null);
+  const [isDocumentLoading, setIsDocumentLoading] = useState(false);
+  const activeDocument = showSelectedDocument ? selectedDocument : evidenceDocument;
+  const isPreviewReady = activeDocument ? activeDocument.status === "READY" : true;
+  const isPdf = activeDocument?.mimeType === "application/pdf";
 
   const activeTitle = useMemo(() => {
     if (selectedSource) {
@@ -31,6 +35,81 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
     }
     return "Evidence";
   }, [selectedSource, selectedDocument, showSelectedDocument]);
+
+  const fields = useMemo(() => {
+    if (!activeDocument) {
+      return [];
+    }
+    const primaryFields =
+      activeDocument.fields?.map((field) => ({
+        label: field.key,
+        value:
+          field.valueText ??
+          field.valueNumber?.toString() ??
+          field.valueDate ??
+          "",
+      })) ?? [];
+
+    const legacyFields = (() => {
+      const data = activeDocument.extractData;
+      if (!data || typeof data !== "object") {
+        return [];
+      }
+      const typedData = data as {
+        fields?: Array<Record<string, unknown>>;
+        extractedFields?: Array<{ label?: string; value?: string }>;
+      };
+      const extracted =
+        typedData.extractedFields?.map((field) => ({
+          label: String(field.label ?? ""),
+          value: String(field.value ?? ""),
+        })) ?? [];
+      const legacy = typedData.fields?.map((field) => ({
+        label: String(field.key ?? ""),
+        value: String(field.valueText ?? field.value ?? ""),
+      })) ?? [];
+      return [...extracted, ...legacy];
+    })();
+
+    return [...primaryFields, ...legacyFields].filter((field) => field.label && field.value);
+  }, [activeDocument]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDocumentDetails = async () => {
+      if (!previewDocumentId) {
+        setEvidenceDocument(null);
+        setIsDocumentLoading(false);
+        return;
+      }
+      if (showSelectedDocument && selectedDocument?.id === previewDocumentId) {
+        setEvidenceDocument(selectedDocument);
+        setIsDocumentLoading(false);
+        return;
+      }
+      setIsDocumentLoading(true);
+      try {
+        const document = await getDocument(previewDocumentId);
+        if (isMounted) {
+          setEvidenceDocument(document);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setEvidenceDocument(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsDocumentLoading(false);
+        }
+      }
+    };
+
+    void fetchDocumentDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [previewDocumentId, selectedDocument, showSelectedDocument]);
 
   useEffect(() => {
     let isMounted = true;
@@ -244,20 +323,33 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
 
             <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Extracted fields</p>
-              <div className="mt-3 space-y-2 text-xs text-slate-500">
-                <div className="flex items-center justify-between">
-                  <span>Reference number</span>
-                  <span className="text-slate-400">—</span>
+              <p className="text-xs text-slate-500">Key details found in this document</p>
+              {activeDocument?.sensitiveDetected ? (
+                <div className="mt-3 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700">
+                  Sensitive document detected. Extracted fields are limited.
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Due date</span>
-                  <span className="text-slate-400">—</span>
+              ) : null}
+              {isDocumentLoading ? (
+                <p className="mt-3 text-sm text-slate-500">Loading extracted fields…</p>
+              ) : fields.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">
+                  {activeDocument?.status === "PROCESSING" || activeDocument?.status === "UPLOADED"
+                    ? "Fields will appear after processing finishes."
+                    : "No key details found yet."}
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  {fields.map((field) => (
+                    <div
+                      key={`${field.label}-${field.value}`}
+                      className="flex items-center justify-between"
+                    >
+                      <span>{field.label}</span>
+                      <span className="text-slate-400">{String(field.value)}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Amount</span>
-                  <span className="text-slate-400">—</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
