@@ -52,12 +52,9 @@ export const runCategorization = async (documentId: string) => {
 
     const normalizedName = normalizeCategoryName(result.categoryName) || "Other";
 
-    const matchedCategory = await prisma.category.findFirst({
-      where: {
-        workspaceId: document.workspaceId,
-        name: { equals: normalizedName, mode: "insensitive" },
-      },
-    });
+    const matchedCategory = existingCategories.find(
+      (category) => normalizeCategoryName(category.name) === normalizedName,
+    );
 
     const category =
       matchedCategory ??
