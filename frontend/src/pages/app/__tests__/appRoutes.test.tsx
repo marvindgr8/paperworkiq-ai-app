@@ -53,13 +53,13 @@ describe("app routes", () => {
     listCategories.mockResolvedValue({ ok: true, categories: [] });
   });
 
-  it("renders upload-first inbox on /app", async () => {
+  it("renders upload-first home on /app", async () => {
     mockDocCount = 0;
     listDocuments.mockResolvedValue({ ok: true, docs: [] });
 
     renderApp("/app");
 
-    expect(await screen.findByText("Upload paperwork")).toBeInTheDocument();
+    expect(await screen.findByText("Upload documents")).toBeInTheDocument();
     expect(screen.getByText("Upload your first document to get started.")).toBeInTheDocument();
   });
 
@@ -88,17 +88,17 @@ describe("app routes", () => {
     renderApp("/app/chat");
 
     expect(await screen.findByText("PaperworkIQ Chat")).toBeInTheDocument();
-    expect(screen.getByText("Search across your paperwork.")).toBeInTheDocument();
+    expect(screen.getByText("Search across your documents.")).toBeInTheDocument();
   });
 
-  it("redirects /app/overview to /app", async () => {
+  it("redirects /app/inbox to /app/home", async () => {
     mockDocCount = 0;
     listDocuments.mockResolvedValue({ ok: true, docs: [] });
 
-    renderApp("/app/overview");
+    renderApp("/app/inbox");
 
-    expect(await screen.findByText("Upload paperwork")).toBeInTheDocument();
-    expect(screen.getByText("Inbox")).toBeInTheDocument();
+    expect(await screen.findByText("Upload documents")).toBeInTheDocument();
+    expect(screen.getByText("Home")).toBeInTheDocument();
   });
 
   it("renders simplified sidebar without overview or categories", async () => {
@@ -107,7 +107,7 @@ describe("app routes", () => {
 
     renderApp("/app");
 
-    expect(await screen.findByText("Inbox")).toBeInTheDocument();
+    expect(await screen.findByText("Home")).toBeInTheDocument();
     expect(screen.queryByText("Overview")).not.toBeInTheDocument();
     expect(screen.queryByText("Categories")).not.toBeInTheDocument();
     expect(screen.queryByText("All documents")).not.toBeInTheDocument();

@@ -18,14 +18,14 @@ const App = () => {
       <Route path="/signup" element={<SignUp />} />
       <Route path="/teams" element={<Teams />} />
       <Route path="/app" element={<AppShellLayout />}>
-        <Route index element={<InboxHomePage />} />
-        <Route path="inbox" element={<Navigate to="/app" replace />} />
+        <Route index element={<Navigate to="/app/home" replace />} />
+        <Route path="home" element={<InboxHomePage />} />
+        <Route path="inbox" element={<Navigate to="/app/home" replace />} />
         <Route path="doc/:id" element={<DocSplitViewPage />} />
         <Route path="chat" element={<ChatHome />} />
         <Route path="actions" element={<ActionsPage />} />
-        <Route path="overview" element={<Navigate to="/app" replace />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="dashboard" element={<Navigate to="/app" replace />} />
+        <Route path="dashboard" element={<Navigate to="/app/home" replace />} />
       </Route>
     </Routes>
   );

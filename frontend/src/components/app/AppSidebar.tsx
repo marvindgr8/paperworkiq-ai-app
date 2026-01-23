@@ -19,7 +19,7 @@ interface AppSidebarProps {
 
 const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
   const { docCount, isLoading, openUpload } = useAppGate();
-  const showInboxBadge = !isLoading;
+  const showHomeBadge = !isLoading;
   return (
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
@@ -52,12 +52,12 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
       </div>
 
       <nav className="space-y-2">
-        <NavLink className={navItemClass} to="/app">
+        <NavLink className={navItemClass} to="/app/home">
           <span className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
-            Inbox
+            Home
           </span>
-          {showInboxBadge ? (
+          {showHomeBadge ? (
             <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">
               {docCount}
             </span>

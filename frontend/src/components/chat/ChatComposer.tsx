@@ -31,7 +31,7 @@ const ChatComposer = ({ onSend, disabled, helperText }: ChatComposerProps) => {
         </button>
         <input
           className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-          placeholder="Ask about a document, due date, or reference number..."
+          placeholder="Ask AI about your documents…"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           disabled={disabled}
@@ -53,7 +53,7 @@ const ChatComposer = ({ onSend, disabled, helperText }: ChatComposerProps) => {
         </Button>
       </div>
       <p className="mt-2 text-xs text-slate-400">
-        {helperText ?? "Responses are grounded in your uploaded paperwork only."}
+        {helperText ?? "Responses are grounded in your uploaded documents only."}
       </p>
     </div>
   );

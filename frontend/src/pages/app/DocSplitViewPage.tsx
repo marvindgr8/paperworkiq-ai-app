@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, StickyNote, Table2 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatThread from "@/components/chat/ChatThread";
 import Button from "@/components/ui/Button";
 import { getDocument, type DocumentDTO } from "@/lib/api";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
+import { useEvidenceContext } from "@/hooks/useEvidenceContext";
 import type { ChatMessageDTO } from "@/types/chat";
 
 const promptChips = [
-  "Summarise this letter",
+  "Summarise this document",
   "What’s the deadline?",
   "What action is required?",
   "Highlight important dates",
@@ -25,11 +26,13 @@ type PreviewTabKey = (typeof previewTabs)[number]["key"];
 
 const DocSplitViewPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [document, setDocument] = useState<DocumentDTO | null>(null);
   const [messages, setMessages] = useState<ChatMessageDTO[]>([]);
   const [activeTab, setActiveTab] = useState<PreviewTabKey>("preview");
   const [loadingDoc, setLoadingDoc] = useState(true);
   const { setSelectedDocument } = useDocumentSelection();
+  const { isOpen: evidenceOpen, openEvidence, closeEvidence } = useEvidenceContext();
 
   useEffect(() => {
     let isMounted = true;
@@ -99,8 +102,34 @@ const DocSplitViewPage = () => {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-zinc-200/70 bg-white/80 px-6 py-5">
-        <h1 className="text-lg font-semibold text-slate-900">Document workspace</h1>
-        <p className="text-xs text-slate-500">{headerSubtitle}</p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Document workspace</h1>
+            <p className="text-xs text-slate-500">{headerSubtitle}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate("/app/home")}
+            >
+              Back to Home
+            </Button>
+            <Button
+              size="sm"
+              variant={evidenceOpen ? "default" : "outline"}
+              onClick={() => {
+                if (evidenceOpen) {
+                  closeEvidence();
+                } else {
+                  openEvidence();
+                }
+              }}
+            >
+              {evidenceOpen ? "Hide evidence" : "Show evidence"}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-6 overflow-hidden lg:flex-row">

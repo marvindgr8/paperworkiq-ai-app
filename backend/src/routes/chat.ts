@@ -144,7 +144,7 @@ chatRouter.post(
     });
 
     const lower = data.content.toLowerCase();
-    let responseText = "Once you upload paperwork, I can answer with exact citations.";
+    let responseText = "Once you upload documents, I can answer with exact citations.";
     let citationDoc = docs[0];
     let citations: Array<{
       documentId: string;
@@ -163,7 +163,7 @@ chatRouter.post(
     } else if (lower.includes("council")) {
       citationDoc = findDoc("council") ?? docs[0];
       responseText =
-        "Your council tax paperwork is on my radar. I’ve pulled the latest notice so we can confirm the due date.";
+        "Your council tax document is on my radar. I’ve pulled the latest notice so we can confirm the due date.";
     } else if (lower.includes("energy")) {
       citationDoc = findDoc("energy") ?? docs[0];
       responseText =
