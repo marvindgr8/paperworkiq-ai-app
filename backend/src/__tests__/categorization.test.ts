@@ -50,7 +50,7 @@ describe("categorization endpoints", () => {
     await prisma.$disconnect();
   });
 
-  it("creates a category and assigns it to a document", async () => {
+  it("stores the category label on the document", async () => {
     const email = `ai-${Date.now()}@example.com`;
 
     const registerResponse = await request(app).post("/api/auth/register").send({
@@ -97,14 +97,14 @@ describe("categorization endpoints", () => {
     });
 
     expect(updatedDocument?.aiStatus).toBe("READY");
-    expect(updatedDocument?.category?.name).toBe("Energy");
+    expect(updatedDocument?.categoryLabel).toBe("Energy");
     expect(updatedDocument?.aiConfidence).toBeCloseTo(0.88, 2);
 
     const categories = await prisma.category.findMany({
       where: { workspaceId },
       select: { id: true },
     });
-    expect(categories).toHaveLength(1);
+    expect(categories).toHaveLength(0);
 
     await cleanupUser(email);
   });

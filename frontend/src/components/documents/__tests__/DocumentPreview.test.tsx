@@ -1,19 +1,15 @@
-import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import DocumentPreview from "@/components/documents/DocumentPreview";
 import type { DocumentDTO } from "@/lib/api";
 
-vi.mock("react-pdf", () => ({
-  Document: ({ children }: { children?: ReactNode }) => (
-    <div>
-      <div>PDF Mock</div>
-      {children}
-    </div>
-  ),
-  Page: ({ pageNumber }: { pageNumber: number }) => <div>Page {pageNumber}</div>,
-  pdfjs: { GlobalWorkerOptions: { workerSrc: "" }, version: "0" },
-}));
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    fetchDocumentPreviewUrl: vi.fn().mockResolvedValue("blob:preview"),
+  };
+});
 
 describe("DocumentPreview", () => {
   it("renders a placeholder when no document is selected", () => {
@@ -27,10 +23,15 @@ describe("DocumentPreview", () => {
       title: "Invoice",
       fileName: "invoice.png",
       mimeType: "image/png",
-      fileUrl: "/uploads/invoice.png",
       status: "READY",
       createdAt: new Date().toISOString(),
-      extractData: { extractedFields: [{ label: "Total", value: "$120" }] },
+      fields: [
+        {
+          id: "field-1",
+          key: "Total",
+          valueText: "$120",
+        },
+      ],
     };
 
     render(<DocumentPreview document={doc} />);
@@ -41,20 +42,20 @@ describe("DocumentPreview", () => {
     expect(screen.getByText("$120")).toBeInTheDocument();
   });
 
-  it("renders PDF navigation for PDF documents", () => {
+  it("renders PDF preview for PDF documents", async () => {
     const doc: DocumentDTO = {
       id: "doc-2",
       title: "Statement",
       fileName: "statement.pdf",
       mimeType: "application/pdf",
-      fileUrl: "/uploads/statement.pdf",
       status: "READY",
       createdAt: new Date().toISOString(),
     };
 
     render(<DocumentPreview document={doc} />);
 
-    expect(screen.getByText("PDF Mock")).toBeInTheDocument();
-    expect(screen.getByText("Page 1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTitle("PDF preview")).toBeInTheDocument();
+    });
   });
 });

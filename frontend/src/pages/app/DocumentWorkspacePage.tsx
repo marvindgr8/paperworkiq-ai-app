@@ -9,8 +9,17 @@ import { useChatSession } from "@/hooks/useChatSession";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 import { useEvidenceContext } from "@/hooks/useEvidenceContext";
-import { getDocument, sendChatMessage, type DocumentDTO } from "@/lib/api";
+import {
+  deleteDocument,
+  downloadDocumentFile,
+  getDocument,
+  reprocessDocument,
+  sendChatMessage,
+  type DocumentDTO,
+} from "@/lib/api";
 import type { ChatMessageDTO } from "@/types/chat";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import DocumentActionsMenu from "@/components/documents/DocumentActionsMenu";
 
 const promptChips = [
   "Summarise this document",
@@ -24,6 +33,7 @@ const DocumentWorkspacePage = () => {
   const navigate = useNavigate();
   const [document, setDocument] = useState<DocumentDTO | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { messages, setMessages } = useChatSession(activeSessionId ?? undefined);
   const { startNewSession } = useChatSessions();
@@ -162,7 +172,26 @@ const DocumentWorkspacePage = () => {
           {loadingDoc ? (
             <div className="h-full rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70" />
           ) : (
-            <DocumentPreview document={document} />
+            <DocumentPreview
+              document={document}
+              onRetryProcessing={
+                document
+                  ? () => {
+                      void reprocessDocument(document.id);
+                    }
+                  : undefined
+              }
+              actions={
+                document ? (
+                  <DocumentActionsMenu
+                    onDelete={() => setDeleteOpen(true)}
+                    onDownload={() => {
+                      void downloadDocumentFile(document.id, document.fileName ?? undefined);
+                    }}
+                  />
+                ) : null
+              }
+            />
           )}
         </div>
 
@@ -213,6 +242,22 @@ const DocumentWorkspacePage = () => {
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete this document?"
+        description="This can’t be undone."
+        confirmLabel="Delete"
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          if (!document) {
+            setDeleteOpen(false);
+            return;
+          }
+          await deleteDocument(document.id);
+          setDeleteOpen(false);
+          navigate("/app", { state: { toast: "Document deleted" } });
+        }}
+      />
     </div>
   );
 };

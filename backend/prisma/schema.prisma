@@ -113,10 +113,15 @@ model Document {
   summary       String?           @db.LongText
   aiConfidence  Float?
   aiMetaJson    String?           @db.LongText
+  categoryLabel String?
+  fileHash      String?
   rawText       String?           @db.LongText
   ocrText       String?           @db.LongText
   ocrPages      Json?
   extractData   Json?
+  processedAt   DateTime?
+  processingError String?         @db.LongText
+  sensitiveDetected Boolean       @default(false)
   fields        ExtractedField[]
   citations     ChatCitation[]
   createdAt     DateTime          @default(now())
@@ -124,6 +129,7 @@ model Document {
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([fileHash])
 }
 
 model ExtractedField {

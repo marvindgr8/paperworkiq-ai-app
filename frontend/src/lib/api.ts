@@ -118,12 +118,25 @@ export interface DocumentDTO {
   status: string;
   aiStatus?: string | null;
   category?: CategoryDTO | null;
-  fileUrl?: string | null;
-  previewImageUrl?: string | null;
+  categoryLabel?: string | null;
+  fileHash?: string | null;
   summary?: string | null;
-  ocrText?: string | null;
+  rawText?: string | null;
   ocrPages?: string[] | null;
   extractData?: Record<string, unknown> | null;
+  fields?: Array<{
+    id: string;
+    key: string;
+    valueText?: string | null;
+    valueNumber?: number | null;
+    valueDate?: string | null;
+    confidence?: number | null;
+    sourcePage?: number | null;
+    sourceSnippet?: string | null;
+  }>;
+  processedAt?: string | null;
+  processingError?: string | null;
+  sensitiveDetected?: boolean | null;
   createdAt: string;
 }
 
@@ -168,4 +181,49 @@ export const getDocument = async (id: string) => {
     headers: { ...authHeaders() },
   });
   return response.json();
+};
+
+export const deleteDocument = async (id: string) => {
+  const response = await fetch(`${baseUrl}/api/documents/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};
+
+export const reprocessDocument = async (id: string) => {
+  const response = await fetch(`${baseUrl}/api/documents/${id}/reprocess`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  return response.json();
+};
+
+export const fetchDocumentPreviewUrl = async (id: string) => {
+  const response = await fetch(`${baseUrl}/api/documents/${id}/preview`, {
+    headers: { ...authHeaders() },
+  });
+  if (!response.ok) {
+    throw new Error("Unable to fetch preview");
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+};
+
+export const downloadDocumentFile = async (id: string, fileName?: string) => {
+  const response = await fetch(`${baseUrl}/api/documents/${id}/file?download=1`, {
+    headers: { ...authHeaders() },
+  });
+  if (!response.ok) {
+    throw new Error("Unable to download file");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName ?? "document";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };

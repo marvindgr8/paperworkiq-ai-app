@@ -1,27 +1,21 @@
 import { CalendarDays, FileText } from "lucide-react";
 import clsx from "clsx";
 import type { DocumentDTO } from "@/lib/api";
+import DocumentActionsMenu from "@/components/documents/DocumentActionsMenu";
 
 interface DocumentRowProps {
   document: DocumentDTO;
   onSelect: (document: DocumentDTO) => void;
   onOpen?: (document: DocumentDTO) => void;
+  onDelete?: (document: DocumentDTO) => void;
+  onDownload?: (document: DocumentDTO) => void;
+  isDuplicate?: boolean;
 }
-
-const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-const resolvePreviewUrl = (fileUrl?: string | null) => {
-  if (!fileUrl) {
-    return null;
-  }
-  if (fileUrl.startsWith("http")) {
-    return fileUrl;
-  }
-  return `${baseUrl}${fileUrl}`;
-};
 
 const statusStyles: Record<string, string> = {
   READY: "bg-emerald-50 text-emerald-700",
   PROCESSING: "bg-amber-50 text-amber-700",
+  FAILED: "bg-rose-50 text-rose-700",
   NEEDS_REVIEW: "bg-rose-50 text-rose-700",
   ACTION_REQUIRED: "bg-rose-50 text-rose-700",
   UPLOADED: "bg-slate-100 text-slate-600",
@@ -33,19 +27,26 @@ const formatStatus = (status: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const DocumentRow = ({ document, onSelect, onOpen }: DocumentRowProps) => {
+const DocumentRow = ({
+  document,
+  onSelect,
+  onOpen,
+  onDelete,
+  onDownload,
+  isDuplicate,
+}: DocumentRowProps) => {
   const createdAt = new Date(document.createdAt).toLocaleDateString();
   const badgeClass = statusStyles[document.status] ?? "bg-slate-100 text-slate-600";
   const aiStatus = document.aiStatus ?? "PENDING";
   const categoryLabel = document.category?.name
     ? document.category.name
+    : document.categoryLabel
+      ? document.categoryLabel
     : aiStatus === "PENDING" || aiStatus === "CATEGORIZING"
       ? "Categorizing…"
       : aiStatus === "FAILED"
         ? "Uncategorized"
         : undefined;
-
-  const previewUrl = resolvePreviewUrl(document.previewImageUrl);
 
   return (
     <div
@@ -62,15 +63,7 @@ const DocumentRow = ({ document, onSelect, onOpen }: DocumentRowProps) => {
     >
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200/70 bg-zinc-50">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt={document.title ?? document.fileName ?? "Document preview"}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <FileText className="h-4 w-4 text-slate-400" />
-          )}
+          <FileText className="h-4 w-4 text-slate-400" />
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -89,23 +82,34 @@ const DocumentRow = ({ document, onSelect, onOpen }: DocumentRowProps) => {
             {categoryLabel ? (
               <span className="rounded-full bg-zinc-100 px-2 py-0.5">{categoryLabel}</span>
             ) : null}
+            {isDuplicate ? (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                Duplicate
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
-      {onOpen ? (
-        <button
-          className="text-xs font-semibold text-slate-500 hover:text-slate-700"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen(document);
-          }}
-          type="button"
-        >
-          Open
-        </button>
-      ) : (
-        <span className="text-xs font-semibold text-slate-400">Open</span>
-      )}
+      <div className="flex items-center gap-3">
+        {onOpen ? (
+          <button
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(document);
+            }}
+            type="button"
+          >
+            Open
+          </button>
+        ) : (
+          <span className="text-xs font-semibold text-slate-400">Open</span>
+        )}
+        <DocumentActionsMenu
+          onDelete={onDelete ? () => onDelete(document) : undefined}
+          onDownload={onDownload ? () => onDownload(document) : undefined}
+        />
+      </div>
     </div>
   );
 };
