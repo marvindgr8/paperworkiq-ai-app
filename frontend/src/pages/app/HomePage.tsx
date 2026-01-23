@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   getDocument,
   listCategories,
@@ -14,6 +14,8 @@ import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import { useAppGate } from "@/hooks/useAppGate";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
 import DocumentPreview from "@/components/documents/DocumentPreview";
+import AppHeader from "@/components/app/AppHeader";
+import Button from "@/components/ui/Button";
 
 const HomePage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
@@ -21,13 +23,13 @@ const HomePage = () => {
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<DocumentDTO | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentDTO | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const { docCount, isLoading, uploadSignal } = useAppGate();
+  const { docCount, isLoading, uploadSignal, openUpload } = useAppGate();
   const { setSelectedDocument } = useDocumentSelection();
   const [searchParams, setSearchParams] = useSearchParams();
-  const lastUploadSignal = useRef(0);
+  const navigate = useNavigate();
   const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
@@ -89,16 +91,9 @@ const HomePage = () => {
   }, [docCount, isLoading, uploadSignal]);
 
   useEffect(() => {
-    if (uploadSignal > lastUploadSignal.current && documents.length > 0) {
-      lastUploadSignal.current = uploadSignal;
-      setSelectedDoc(documents[0]);
-    }
-  }, [documents, uploadSignal]);
-
-  useEffect(() => {
     if (uploadFirst) {
       setSelectedDocument(null);
-      setSelectedDoc(null);
+      setSelectedDocumentId(null);
       setPreviewDoc(null);
     }
   }, [setSelectedDocument, uploadFirst]);
@@ -127,20 +122,22 @@ const HomePage = () => {
   };
 
   useEffect(() => {
-    if (!selectedDoc && documents.length > 0) {
-      setSelectedDoc(documents[0]);
+    if (selectedDocumentId && !documents.some((doc) => doc.id === selectedDocumentId)) {
+      setSelectedDocumentId(null);
+      setSelectedDocument(null);
+      setPreviewDoc(null);
     }
-  }, [documents, selectedDoc]);
+  }, [documents, selectedDocumentId, setSelectedDocument]);
 
   useEffect(() => {
     const fetchPreview = async () => {
-      if (!selectedDoc) {
+      if (!selectedDocumentId) {
         setPreviewDoc(null);
         return;
       }
       setIsPreviewLoading(true);
       try {
-        const response = await getDocument(selectedDoc.id);
+        const response = await getDocument(selectedDocumentId);
         if (response.ok) {
           setPreviewDoc(response.doc ?? null);
         } else {
@@ -154,21 +151,24 @@ const HomePage = () => {
     };
 
     void fetchPreview();
-  }, [selectedDoc]);
+  }, [selectedDocumentId]);
 
   const handleSelectDocument = (doc: DocumentDTO) => {
-    setSelectedDoc(doc);
+    setSelectedDocumentId(doc.id);
     setSelectedDocument(doc);
   };
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-zinc-200/70 bg-white/80 px-6 py-5">
-        <h1 className="text-lg font-semibold text-slate-900">Home</h1>
-        <p className="text-xs text-slate-500">
-          Upload documents to keep everything organized and ready for AI answers.
-        </p>
-      </div>
+      <AppHeader
+        title="Home"
+        subtitle="Upload documents to keep everything organized and ready for AI answers."
+        actions={
+          <Button size="sm" onClick={openUpload}>
+            Upload
+          </Button>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {uploadFirst ? (
@@ -181,8 +181,12 @@ const HomePage = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-6 lg:flex-row">
-            <div className="flex w-full flex-col gap-6 lg:w-2/5">
-              <UploadPanel />
+            <div
+              className={`flex w-full flex-col gap-6 lg:w-2/5 ${
+                selectedDocumentId ? "hidden lg:flex" : "flex"
+              }`}
+            >
+              {!selectedDocumentId ? <UploadPanel /> : null}
 
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -239,15 +243,57 @@ const HomePage = () => {
                   {isFetching ? "Loading documents…" : "No matching documents yet."}
                 </div>
               ) : (
-                <DocumentList documents={filteredDocs} onSelect={handleSelectDocument} />
+                <DocumentList
+                  documents={filteredDocs}
+                  onSelect={handleSelectDocument}
+                  onOpen={(doc) => navigate(`/app/doc/${doc.id}`)}
+                />
               )}
             </div>
 
-            <div className="flex-1">
-              {isPreviewLoading ? (
-                <div className="h-full rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70" />
+            <div className={`flex-1 ${selectedDocumentId ? "flex" : "hidden lg:flex"}`}>
+              {selectedDocumentId ? (
+                isPreviewLoading ? (
+                  <div className="h-full w-full rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70" />
+                ) : (
+                  <DocumentPreview
+                    document={previewDoc}
+                    actions={
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="lg:hidden"
+                          onClick={() => {
+                            setSelectedDocumentId(null);
+                            setSelectedDocument(null);
+                          }}
+                        >
+                          Back to list
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (selectedDocumentId) {
+                              navigate(`/app/doc/${selectedDocumentId}`);
+                            }
+                          }}
+                        >
+                          Open workspace
+                        </Button>
+                      </>
+                    }
+                  />
+                )
               ) : (
-                <DocumentPreview document={previewDoc} />
+                <div className="flex h-full items-center justify-center rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center">
+                  <div className="space-y-2 text-sm text-slate-500">
+                    <p className="text-sm font-medium text-slate-700">
+                      Select a document to preview
+                    </p>
+                    <p>Pick a document from the list to review details.</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

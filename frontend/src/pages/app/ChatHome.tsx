@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles } from "lucide-react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatEmptyState from "@/components/chat/ChatEmptyState";
 import ChatUploadEmptyState from "@/components/chat/ChatUploadEmptyState";
@@ -11,6 +10,7 @@ import { useAppGate } from "@/hooks/useAppGate";
 import Button from "@/components/ui/Button";
 import { sendChatMessage } from "@/lib/api";
 import type { ChatMessageDTO } from "@/types/chat";
+import AppHeader from "@/components/app/AppHeader";
 
 const ChatHome = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -100,38 +100,22 @@ const ChatHome = () => {
     }
   };
 
-  const headerDescription = useMemo(() => {
-    if (messages.length === 0) {
-      return uploadFirst
-        ? "Upload documents to unlock answers with citations."
-        : "Ask anything about your documents, bills, and records.";
-    }
-    return "Answers are anchored to the exact document and page.";
-  }, [messages.length, uploadFirst]);
-
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-zinc-200/70 bg-white/80 px-6 py-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <Sparkles className="h-4 w-4 text-slate-500" />
-              PaperworkIQ Chat
-            </div>
-            <p className="text-xs text-slate-500">{headerDescription}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {uploadFirst ? (
-              <Button size="sm" onClick={openUpload}>
-                Upload
-              </Button>
-            ) : null}
+      <AppHeader
+        title="PaperworkIQ Chat"
+        subtitle="Ask anything about your documents, bills, and records."
+        actions={
+          <>
+            <Button size="sm" onClick={openUpload}>
+              Upload
+            </Button>
             <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">
               Personal workspace
             </span>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex-1 overflow-hidden">
         {isLoading ? (

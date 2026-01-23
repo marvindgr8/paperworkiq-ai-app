@@ -92,11 +92,19 @@ export const listChatMessages = async (sessionId: string) => {
   return response.json();
 };
 
-export const sendChatMessage = async (sessionId: string, content: string) => {
+export const sendChatMessage = async (
+  sessionId: string,
+  content: string,
+  options?: { documentId?: string }
+) => {
+  const payload: { content: string; documentId?: string } = { content };
+  if (options?.documentId) {
+    payload.documentId = options.documentId;
+  }
   const response = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(payload),
   });
   return response.json();
 };
