@@ -88,7 +88,7 @@ const WorkspaceMenu = () => {
 
       {isOpen ? (
         <div
-          className="absolute left-0 right-0 top-full z-30 mt-2 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_14px_28px_rgba(15,23,42,0.12)]"
+          className="absolute left-0 right-0 bottom-full z-30 mb-2 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_14px_28px_rgba(15,23,42,0.12)]"
           role="menu"
         >
           <div className="px-3 py-2">
