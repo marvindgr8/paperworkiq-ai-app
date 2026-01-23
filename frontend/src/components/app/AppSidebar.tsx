@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Bell, MessageCircle, FolderOpen, Plus, Search } from "lucide-react";
+import { Bell, MessageCircle, Home, Plus, Search } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
 import { useAppGate } from "@/hooks/useAppGate";
@@ -24,7 +24,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">PaperworkIQ</p>
+          <p className="text-xs tracking-[0.2em] text-slate-400">PaperworkIQ</p>
           <p className="text-lg font-semibold text-slate-900">Your assistant</p>
         </div>
       </div>
@@ -54,7 +54,7 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
       <nav className="space-y-2">
         <NavLink className={navItemClass} to="/app/home">
           <span className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
+            <Home className="h-4 w-4" />
             Home
           </span>
           {showHomeBadge ? (
