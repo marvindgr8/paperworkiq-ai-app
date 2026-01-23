@@ -5,6 +5,7 @@ import type { DocumentDTO } from "@/lib/api";
 interface DocumentRowProps {
   document: DocumentDTO;
   onSelect: (document: DocumentDTO) => void;
+  onOpen?: (document: DocumentDTO) => void;
 }
 
 const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
@@ -32,7 +33,7 @@ const formatStatus = (status: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const DocumentRow = ({ document, onSelect }: DocumentRowProps) => {
+const DocumentRow = ({ document, onSelect, onOpen }: DocumentRowProps) => {
   const createdAt = new Date(document.createdAt).toLocaleDateString();
   const badgeClass = statusStyles[document.status] ?? "bg-slate-100 text-slate-600";
   const aiStatus = document.aiStatus ?? "PENDING";
@@ -47,10 +48,17 @@ const DocumentRow = ({ document, onSelect }: DocumentRowProps) => {
   const previewUrl = resolvePreviewUrl(document.previewImageUrl);
 
   return (
-    <button
-      className="flex w-full items-center justify-between gap-4 rounded-[28px] border border-zinc-200/70 bg-white px-4 py-4 text-left shadow-sm transition hover:border-zinc-300"
+    <div
+      className="flex w-full cursor-pointer items-center justify-between gap-4 rounded-[28px] border border-zinc-200/70 bg-white px-4 py-4 text-left shadow-sm transition hover:border-zinc-300"
       onClick={() => onSelect(document)}
-      type="button"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(document);
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200/70 bg-zinc-50">
@@ -84,8 +92,21 @@ const DocumentRow = ({ document, onSelect }: DocumentRowProps) => {
           </div>
         </div>
       </div>
-      <span className="text-xs font-semibold text-slate-400">Open</span>
-    </button>
+      {onOpen ? (
+        <button
+          className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen(document);
+          }}
+          type="button"
+        >
+          Open
+        </button>
+      ) : (
+        <span className="text-xs font-semibold text-slate-400">Open</span>
+      )}
+    </div>
   );
 };
 

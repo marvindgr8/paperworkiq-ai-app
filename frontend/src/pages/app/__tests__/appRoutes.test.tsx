@@ -63,6 +63,25 @@ describe("app routes", () => {
     expect(screen.getByText("Upload your first document to get started.")).toBeInTheDocument();
   });
 
+  it("shows the upload card when no document is selected", async () => {
+    mockDocCount = 1;
+    const doc: DocumentDTO = {
+      id: "doc-100",
+      title: "Utility bill",
+      fileName: "bill.pdf",
+      mimeType: "image/png",
+      fileUrl: "/uploads/bill.png",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+    };
+    listDocuments.mockResolvedValue({ ok: true, docs: [doc] });
+
+    renderApp("/app/home");
+
+    expect(await screen.findByText("Choose files")).toBeInTheDocument();
+    expect(screen.getByText("Select a document to preview")).toBeInTheDocument();
+  });
+
   it("shows a document preview when a document row is clicked", async () => {
     mockDocCount = 1;
     const doc: DocumentDTO = {
@@ -87,10 +106,11 @@ describe("app routes", () => {
     renderApp("/app");
 
     const row = await screen.findByText("Council tax reminder");
-    fireEvent.click(row.closest("button") ?? row);
+    fireEvent.click(row);
 
-    expect(await screen.findByText("Extracted fields")).toBeInTheDocument();
-    expect(screen.getByText("Due date")).toBeInTheDocument();
+    expect(await screen.findByText("Preview")).toBeInTheDocument();
+    expect(screen.getByText("Extracted fields")).toBeInTheDocument();
+    expect(screen.queryByText("Choose files")).not.toBeInTheDocument();
   });
 
   it("renders global chat at /app/chat", async () => {
@@ -98,7 +118,63 @@ describe("app routes", () => {
     renderApp("/app/chat");
 
     expect(await screen.findByText("PaperworkIQ Chat")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ask anything about your documents, bills, and records.")
+    ).toBeInTheDocument();
     expect(screen.getByText("Search across your documents.")).toBeInTheDocument();
+  });
+
+  it("navigates to the document workspace from Home", async () => {
+    mockDocCount = 1;
+    const doc: DocumentDTO = {
+      id: "doc-456",
+      title: "Lease agreement",
+      fileName: "lease.pdf",
+      mimeType: "image/png",
+      fileUrl: "/uploads/lease.png",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+    };
+    listDocuments.mockResolvedValue({ ok: true, docs: [doc] });
+    getDocument.mockResolvedValue({
+      ok: true,
+      doc: {
+        ...doc,
+        rawText: "Lease term is 12 months",
+        extractData: { fields: [{ key: "Term", valueText: "12 months" }] },
+      },
+    });
+
+    renderApp("/app/home");
+
+    const row = await screen.findByText("Lease agreement");
+    fireEvent.click(row);
+
+    const openButton = await screen.findByText("Open workspace");
+    fireEvent.click(openButton);
+
+    expect(await screen.findByText("Document workspace")).toBeInTheDocument();
+    expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
+  });
+
+  it("renders document workspace panels at /app/doc/:id", async () => {
+    mockDocCount = 1;
+    const doc: DocumentDTO = {
+      id: "doc-789",
+      title: "Bank statement",
+      fileName: "statement.pdf",
+      mimeType: "image/png",
+      fileUrl: "/uploads/statement.png",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+    };
+    getDocument.mockResolvedValue({ ok: true, doc });
+
+    renderApp("/app/doc/doc-789");
+
+    expect(await screen.findByText("Document workspace")).toBeInTheDocument();
+    expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
+    expect(screen.getByText("Preview")).toBeInTheDocument();
   });
 
   it("redirects /app/inbox to /app/home", async () => {

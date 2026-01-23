@@ -8,7 +8,7 @@ import ChatHome from "./pages/app/ChatHome";
 import HomePage from "./pages/app/HomePage";
 import ActionsPage from "./pages/app/ActionsPage";
 import SettingsPage from "./pages/app/SettingsPage";
-import DocSplitViewPage from "./pages/app/DocSplitViewPage";
+import DocumentWorkspacePage from "./pages/app/DocumentWorkspacePage";
 
 const App = () => {
   return (
@@ -21,7 +21,7 @@ const App = () => {
         <Route index element={<Navigate to="/app/home" replace />} />
         <Route path="home" element={<HomePage />} />
         <Route path="inbox" element={<Navigate to="/app/home" replace />} />
-        <Route path="doc/:id" element={<DocSplitViewPage />} />
+        <Route path="doc/:id" element={<DocumentWorkspacePage />} />
         <Route path="chat" element={<ChatHome />} />
         <Route path="actions" element={<ActionsPage />} />
         <Route path="settings" element={<SettingsPage />} />

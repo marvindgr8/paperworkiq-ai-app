@@ -5,10 +5,11 @@ import Button from "@/components/ui/Button";
 import { listDocuments, type DocumentDTO } from "@/lib/api";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import { useAppGate } from "@/hooks/useAppGate";
+import AppHeader from "@/components/app/AppHeader";
 
 const ActionsPage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const { docCount, isLoading } = useAppGate();
+  const { docCount, isLoading, openUpload } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
   const navigate = useNavigate();
 
@@ -42,10 +43,15 @@ const ActionsPage = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-zinc-200/70 bg-white/80 px-6 py-5">
-        <h1 className="text-lg font-semibold text-slate-900">Actions</h1>
-        <p className="text-xs text-slate-500">Documents that need your attention.</p>
-      </div>
+      <AppHeader
+        title="Actions"
+        subtitle="Documents that need your attention."
+        actions={
+          <Button size="sm" onClick={openUpload}>
+            Upload
+          </Button>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="space-y-4">
