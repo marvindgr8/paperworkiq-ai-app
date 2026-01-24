@@ -8,7 +8,3 @@ CREATE INDEX `ChatSession_workspaceId_scope_documentId_idx` ON `ChatSession`(`wo
 
 ALTER TABLE `ChatSession`
   ADD CONSTRAINT `ChatSession_documentId_fkey` FOREIGN KEY (`documentId`) REFERENCES `Document`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE `ChatSession`
-  ADD CONSTRAINT `ChatSession_scope_document_check`
-  CHECK ((`scope` = 'WORKSPACE' AND `documentId` IS NULL) OR (`scope` = 'DOCUMENT' AND `documentId` IS NOT NULL));
