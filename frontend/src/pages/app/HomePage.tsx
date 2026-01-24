@@ -52,10 +52,8 @@ const HomePage = () => {
 
   useEffect(() => {
     const urlQuery = searchParams.get("q") ?? "";
-    if (urlQuery !== query) {
-      setQuery(urlQuery);
-    }
-  }, [query, searchParams, setQuery]);
+    setQuery(urlQuery);
+  }, [searchParams, setQuery]);
 
   useEffect(() => {
     setSearchParams(
