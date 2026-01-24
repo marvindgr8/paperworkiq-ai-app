@@ -29,6 +29,21 @@ const formatStatus = (status: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
+const formatProcessingError = (processingError?: string | null) => {
+  if (!processingError) {
+    return null;
+  }
+  const lower = processingError.toLowerCase();
+  if (lower.includes("bad xref")) {
+    return {
+      title: "We couldn't read this PDF (bad XRef entry).",
+      hint:
+        "Try re-exporting or repairing the PDF (Save As/Print to PDF), then upload it again.",
+    };
+  }
+  return { title: processingError };
+};
+
 const buildFieldList = (document: DocumentDTO | null) => {
   if (!document) {
     return [];
@@ -88,6 +103,10 @@ const DocumentPreview = ({
   const statusLabel = formatStatus(status);
   const badgeClass = statusStyles[status] ?? "bg-slate-100 text-slate-600";
   const rawText = document?.rawText ?? "";
+  const processingErrorMessage = useMemo(
+    () => formatProcessingError(document?.processingError),
+    [document?.processingError]
+  );
 
   useEffect(() => {
     setActiveTab("preview");
@@ -192,8 +211,13 @@ const DocumentPreview = ({
               </span>
             </div>
             <p className="text-xs text-slate-500">Uploaded {createdAtLabel}</p>
-            {document.processingError ? (
-              <p className="text-xs text-rose-500">{document.processingError}</p>
+            {processingErrorMessage ? (
+              <div className="space-y-1 text-xs text-rose-500">
+                <p>{processingErrorMessage.title}</p>
+                {processingErrorMessage.hint ? (
+                  <p className="text-rose-400">{processingErrorMessage.hint}</p>
+                ) : null}
+              </div>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
