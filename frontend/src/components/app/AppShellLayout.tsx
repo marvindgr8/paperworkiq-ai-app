@@ -40,7 +40,12 @@ const AppShellLayout = () => {
   );
 
   const handleNewChat = () => {
-    navigate("/app/chat?new=1");
+    const match = location.pathname.match(/^\/app\/doc\/([^/]+)/);
+    if (match) {
+      navigate(`/app/doc/${match[1]}?new=1`);
+    } else {
+      navigate("/app/chat?new=1");
+    }
     setSidebarOpen(false);
   };
 

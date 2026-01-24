@@ -26,6 +26,11 @@ enum ChatRole {
   ASSISTANT
 }
 
+enum ChatScope {
+  WORKSPACE
+  DOCUMENT
+}
+
 enum WorkspaceType {
   PERSONAL
   TEAM
@@ -152,13 +157,19 @@ model ChatSession {
   id          String        @id @default(cuid())
   userId      String
   workspaceId String
+  scope       ChatScope     @default(WORKSPACE)
+  documentId  String?
   user        User          @relation(fields: [userId], references: [id])
   workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  document    Document?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
   messages    ChatMessage[]
   createdAt   DateTime      @default(now())
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, scope])
+  @@index([workspaceId, scope, documentId])
 }
 
 model ChatMessage {

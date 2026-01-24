@@ -15,9 +15,11 @@ import AppHeader from "@/components/app/AppHeader";
 const ChatHome = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const newChatRequested = searchParams.get("new") === "1";
-  const { sessions, startNewSession } = useChatSessions();
+  const { sessions, startNewSession } = useChatSessions({ scope: "WORKSPACE" });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const { messages, setMessages } = useChatSession(activeSessionId ?? undefined);
+  const { messages, setMessages } = useChatSession(activeSessionId ?? undefined, {
+    scope: "WORKSPACE",
+  });
   const { docCount, isLoading, openUpload } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
 
@@ -82,7 +84,7 @@ const ChatHome = () => {
     setMessages((prev) => [...prev, userMessage, pendingMessage]);
 
     try {
-      const response = await sendChatMessage(sessionId, content);
+      const response = await sendChatMessage(sessionId, content, { scope: "WORKSPACE" });
       if (!response.ok || !response.message) {
         setMessages((prev) => prev.filter((message) => message.id !== pendingId));
         return;
