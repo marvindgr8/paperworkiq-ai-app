@@ -129,6 +129,7 @@ model Document {
   sensitiveDetected Boolean       @default(false)
   fields        ExtractedField[]
   citations     ChatCitation[]
+  chatSessions  ChatSession[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
