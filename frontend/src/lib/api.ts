@@ -45,9 +45,13 @@ export const me = async (token: string) => {
   return response.json();
 };
 
+export type ChatScope = "WORKSPACE" | "DOCUMENT";
+
 export interface ChatSessionDTO {
   id: string;
   createdAt: string;
+  scope: ChatScope;
+  documentId?: string | null;
 }
 
 export interface ChatMessageDTO {
@@ -69,24 +73,54 @@ export interface CategoryDTO {
   name: string;
 }
 
-export const listChatSessions = async () => {
-  const response = await fetch(`${baseUrl}/api/chat/sessions`, {
+export const listChatSessions = async (options?: {
+  scope?: ChatScope;
+  documentId?: string;
+}) => {
+  const url = new URL(`${baseUrl}/api/chat/sessions`);
+  if (options?.scope) {
+    url.searchParams.set("scope", options.scope);
+  }
+  if (options?.documentId) {
+    url.searchParams.set("documentId", options.documentId);
+  }
+  const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
   });
   return response.json();
 };
 
-export const createChatSession = async () => {
+export const createChatSession = async (options?: {
+  scope?: ChatScope;
+  documentId?: string;
+}) => {
+  const payload: { scope?: ChatScope; documentId?: string } = {};
+  if (options?.scope) {
+    payload.scope = options.scope;
+  }
+  if (options?.documentId) {
+    payload.documentId = options.documentId;
+  }
   const response = await fetch(`${baseUrl}/api/chat/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({}),
+    body: JSON.stringify(payload),
   });
   return response.json();
 };
 
-export const listChatMessages = async (sessionId: string) => {
-  const response = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages`, {
+export const listChatMessages = async (
+  sessionId: string,
+  options?: { scope?: ChatScope; documentId?: string }
+) => {
+  const url = new URL(`${baseUrl}/api/chat/sessions/${sessionId}/messages`);
+  if (options?.scope) {
+    url.searchParams.set("scope", options.scope);
+  }
+  if (options?.documentId) {
+    url.searchParams.set("documentId", options.documentId);
+  }
+  const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
   });
   return response.json();
@@ -95,9 +129,12 @@ export const listChatMessages = async (sessionId: string) => {
 export const sendChatMessage = async (
   sessionId: string,
   content: string,
-  options?: { documentId?: string }
+  options?: { scope?: ChatScope; documentId?: string }
 ) => {
-  const payload: { content: string; documentId?: string } = { content };
+  const payload: { content: string; scope?: ChatScope; documentId?: string } = { content };
+  if (options?.scope) {
+    payload.scope = options.scope;
+  }
   if (options?.documentId) {
     payload.documentId = options.documentId;
   }

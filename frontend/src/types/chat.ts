@@ -1,4 +1,5 @@
 export type ChatRole = "USER" | "ASSISTANT";
+export type ChatScope = "WORKSPACE" | "DOCUMENT";
 
 export interface Citation {
   documentId: string;
@@ -19,4 +20,6 @@ export interface ChatMessageDTO {
 export interface ChatSessionDTO {
   id: string;
   createdAt: string;
+  scope: ChatScope;
+  documentId?: string | null;
 }

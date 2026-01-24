@@ -1,6 +1,7 @@
 import { Router } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
+import { ChatScope } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAuth.js";
@@ -9,20 +10,37 @@ import { env } from "../lib/env.js";
 
 export const chatRouter = Router();
 
+const chatScopeSchema = z.enum([ChatScope.WORKSPACE, ChatScope.DOCUMENT]);
+
 const createSessionSchema = z.object({
   workspaceId: z.string().optional(),
+  scope: chatScopeSchema.optional(),
+  documentId: z.string().optional(),
 });
 
 const messageSchema = z.object({
   content: z.string().min(1),
+  scope: chatScopeSchema.optional(),
   documentId: z.string().optional(),
 });
 
-const getWorkspaceIdFromQuery = (workspaceId: string | string[] | undefined) => {
-  if (Array.isArray(workspaceId)) {
-    return workspaceId[0];
+const querySchema = z.object({
+  scope: chatScopeSchema.optional(),
+  documentId: z.string().optional(),
+});
+
+const getQueryParam = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) {
+    return value[0];
   }
-  return workspaceId;
+  return value;
+};
+
+const resolveScope = (scope?: ChatScope, documentId?: string | null) => {
+  if (scope) {
+    return scope;
+  }
+  return documentId ? ChatScope.DOCUMENT : ChatScope.WORKSPACE;
 };
 
 chatRouter.use(requireAuth);
@@ -37,16 +55,44 @@ chatRouter.get(
 
     const workspace = await getAccessibleWorkspace(
       userId,
-      getWorkspaceIdFromQuery(req.query.workspaceId)
+      getQueryParam(req.query.workspaceId)
     );
     if (!workspace) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    const rawScope = getQueryParam(req.query.scope);
+    const rawDocumentId = getQueryParam(req.query.documentId);
+    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId });
+    const scope = resolveScope(query.scope, query.documentId);
+
+    if (scope === ChatScope.DOCUMENT && !query.documentId) {
+      return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
+    }
+    if (scope === ChatScope.WORKSPACE && query.documentId) {
+      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
+    }
+
+    if (scope === ChatScope.DOCUMENT && query.documentId) {
+      const document = await prisma.document.findUnique({
+        where: { id: query.documentId },
+        select: { id: true, workspaceId: true },
+      });
+      if (!document || document.workspaceId !== workspace.id) {
+        return res.status(404).json({ ok: false, error: "Document not found" });
+      }
+    }
+
     const sessions = await prisma.chatSession.findMany({
-      where: { workspaceId: workspace.id },
+      where: {
+        workspaceId: workspace.id,
+        scope,
+        ...(scope === ChatScope.DOCUMENT && query.documentId
+          ? { documentId: query.documentId }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, scope: true, documentId: true },
     });
 
     res.json({ ok: true, sessions });
@@ -67,9 +113,35 @@ chatRouter.post(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    const scope = resolveScope(data.scope, data.documentId);
+    if (scope === ChatScope.DOCUMENT && !data.documentId) {
+      return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
+    }
+    if (scope === ChatScope.WORKSPACE && data.documentId) {
+      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
+    }
+
+    if (scope === ChatScope.DOCUMENT && data.documentId) {
+      const document = await prisma.document.findUnique({
+        where: { id: data.documentId },
+        select: { id: true, workspaceId: true },
+      });
+      if (!document) {
+        return res.status(404).json({ ok: false, error: "Document not found" });
+      }
+      if (document.workspaceId !== workspace.id) {
+        return res.status(403).json({ ok: false, error: "Workspace access denied" });
+      }
+    }
+
     const session = await prisma.chatSession.create({
-      data: { userId, workspaceId: workspace.id },
-      select: { id: true, createdAt: true },
+      data: {
+        userId,
+        workspaceId: workspace.id,
+        scope,
+        documentId: scope === ChatScope.DOCUMENT ? data.documentId : null,
+      },
+      select: { id: true, createdAt: true, scope: true, documentId: true },
     });
 
     res.status(201).json({ ok: true, session });
@@ -86,7 +158,7 @@ chatRouter.get(
 
     const session = await prisma.chatSession.findUnique({
       where: { id: req.params.id },
-      select: { id: true, workspaceId: true },
+      select: { id: true, workspaceId: true, scope: true, documentId: true },
     });
 
     if (!session) {
@@ -96,6 +168,27 @@ chatRouter.get(
     const canAccess = await ensureWorkspaceAccess(userId, session.workspaceId);
     if (!canAccess) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const rawScope = getQueryParam(req.query.scope);
+    const rawDocumentId = getQueryParam(req.query.documentId);
+    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId });
+    const scope = resolveScope(query.scope, query.documentId ?? session.documentId);
+
+    if (scope !== session.scope) {
+      return res.status(400).json({ ok: false, error: "Session scope mismatch" });
+    }
+    if (scope === ChatScope.DOCUMENT) {
+      const documentId = query.documentId ?? session.documentId;
+      if (!documentId) {
+        return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
+      }
+      if (session.documentId !== documentId) {
+        return res.status(400).json({ ok: false, error: "Document scope mismatch" });
+      }
+    }
+    if (scope === ChatScope.WORKSPACE && query.documentId) {
+      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
     }
 
     const messages = await prisma.chatMessage.findMany({
@@ -135,7 +228,7 @@ chatRouter.post(
 
     const session = await prisma.chatSession.findUnique({
       where: { id: req.params.id },
-      select: { id: true, workspaceId: true },
+      select: { id: true, workspaceId: true, scope: true, documentId: true },
     });
 
     if (!session) {
@@ -145,6 +238,24 @@ chatRouter.post(
     const canAccess = await ensureWorkspaceAccess(userId, session.workspaceId);
     if (!canAccess) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const scope = resolveScope(data.scope, data.documentId ?? session.documentId);
+    const resolvedDocumentId =
+      scope === ChatScope.DOCUMENT ? data.documentId ?? session.documentId : undefined;
+    if (scope !== session.scope) {
+      return res.status(400).json({ ok: false, error: "Session scope mismatch" });
+    }
+    if (scope === ChatScope.DOCUMENT) {
+      if (!resolvedDocumentId) {
+        return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
+      }
+      if (session.documentId !== resolvedDocumentId) {
+        return res.status(400).json({ ok: false, error: "Document scope mismatch" });
+      }
+    }
+    if (scope === ChatScope.WORKSPACE && data.documentId) {
+      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
     }
 
     await prisma.chatMessage.create({
@@ -173,28 +284,29 @@ chatRouter.post(
       mimeType: string | null;
     };
 
-    const docs: DocumentContext[] = data.documentId
-      ? []
-      : await prisma.document.findMany({
-          where: { workspaceId: session.workspaceId },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            title: true,
-            fileName: true,
-            rawText: true,
-            ocrPages: true,
-            fields: true,
-            mimeType: true,
-          },
-        });
+    const docs: DocumentContext[] =
+      scope === ChatScope.DOCUMENT
+        ? []
+        : await prisma.document.findMany({
+            where: { workspaceId: session.workspaceId },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+            select: {
+              id: true,
+              title: true,
+              fileName: true,
+              rawText: true,
+              ocrPages: true,
+              fields: true,
+              mimeType: true,
+            },
+          });
 
     let scopedDocument: DocumentContext | null = null;
 
-    if (data.documentId) {
+    if (scope === ChatScope.DOCUMENT) {
       const document = await prisma.document.findUnique({
-        where: { id: data.documentId },
+        where: { id: resolvedDocumentId },
         select: {
           id: true,
           title: true,
@@ -352,7 +464,7 @@ chatRouter.post(
       }
     }
 
-    const isDocumentScoped = Boolean(data.documentId);
+    const isDocumentScoped = scope === ChatScope.DOCUMENT;
 
     let responseText =
       citations.length === 0
@@ -401,11 +513,12 @@ chatRouter.post(
               {
                 role: "system",
                 content:
-                  "You are a document-specific assistant. Use only the provided document data. If the answer is not in the document, say you are not sure. Cite evidence when possible. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
+                  `Scope: ${ChatScope.DOCUMENT}. You are a document-specific assistant. Use only the provided document data. If the answer is not in the document, say you are not sure. Cite evidence when possible. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.`,
               },
               {
                 role: "user",
                 content: [
+                  `Scope: ${ChatScope.DOCUMENT}`,
                   `Question: ${data.content}`,
                   `Document: ${documentTitle} (id: ${selectedDocument.id})`,
                   "Extracted fields:",
@@ -422,11 +535,11 @@ chatRouter.post(
               {
                 role: "system",
                 content:
-                  "Answer the user using only the provided snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
+                  `Scope: ${ChatScope.WORKSPACE}. Answer the user using only the provided snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.`,
               },
               {
                 role: "user",
-                content: `Question: ${data.content}\n\nSnippets:\n${context}`,
+                content: `Scope: ${ChatScope.WORKSPACE}\nQuestion: ${data.content}\n\nSnippets:\n${context}`,
               },
             ],
         temperature: 0.2,

@@ -19,12 +19,15 @@ vi.mock("@/hooks/useDocumentCount", () => ({
   }),
 }));
 
+const useChatSessions = vi.fn();
+const useChatSession = vi.fn();
+
 vi.mock("@/hooks/useChatSessions", () => ({
-  useChatSessions: () => ({ sessions: [], startNewSession: vi.fn() }),
+  useChatSessions,
 }));
 
 vi.mock("@/hooks/useChatSession", () => ({
-  useChatSession: () => ({ messages: [], setMessages: vi.fn() }),
+  useChatSession,
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -52,6 +55,10 @@ describe("app routes", () => {
     listCategories.mockReset();
     getDocument.mockReset();
     listCategories.mockResolvedValue({ ok: true, categories: [] });
+    useChatSessions.mockReset();
+    useChatSession.mockReset();
+    useChatSessions.mockReturnValue({ sessions: [], startNewSession: vi.fn() });
+    useChatSession.mockReturnValue({ messages: [], setMessages: vi.fn() });
   });
 
   it("renders upload-first home on /app", async () => {
@@ -185,6 +192,66 @@ describe("app routes", () => {
     expect(await screen.findByText("Document view")).toBeInTheDocument();
     expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeInTheDocument();
+  });
+
+  it("resets chat state when switching from document chat to global chat", async () => {
+    mockDocCount = 1;
+    const doc: DocumentDTO = {
+      id: "doc-202",
+      title: "Loan offer",
+      fileName: "loan.pdf",
+      mimeType: "application/pdf",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+    };
+    getDocument.mockResolvedValue({ ok: true, doc });
+
+    useChatSessions.mockImplementation((options: { scope: string }) => ({
+      sessions: [
+        {
+          id: options.scope === "DOCUMENT" ? "doc-session" : "workspace-session",
+          createdAt: new Date().toISOString(),
+          scope: options.scope,
+          documentId: options.scope === "DOCUMENT" ? "doc-202" : null,
+        },
+      ],
+      startNewSession: vi.fn(),
+    }));
+
+    useChatSession.mockImplementation((sessionId?: string, options?: { scope?: string }) => ({
+      messages:
+        options?.scope === "DOCUMENT"
+          ? [
+              {
+                id: "doc-msg",
+                role: "USER",
+                content: "Doc-specific message",
+                createdAt: new Date().toISOString(),
+              },
+            ]
+          : [
+              {
+                id: "workspace-msg",
+                role: "USER",
+                content: "Workspace message",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+      setMessages: vi.fn(),
+    }));
+
+    const { rerender } = renderApp("/app/doc/doc-202");
+
+    expect(await screen.findByText("Doc-specific message")).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter initialEntries={["/app/chat"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Workspace message")).toBeInTheDocument();
+    expect(screen.queryByText("Doc-specific message")).not.toBeInTheDocument();
   });
 
   it("redirects /app/inbox to /app/home", async () => {

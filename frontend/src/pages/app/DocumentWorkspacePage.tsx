@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatThread from "@/components/chat/ChatThread";
@@ -31,12 +31,20 @@ const promptChips = [
 const DocumentWorkspacePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const newChatRequested = searchParams.get("new") === "1";
   const [document, setDocument] = useState<DocumentDTO | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const { messages, setMessages } = useChatSession(activeSessionId ?? undefined);
-  const { startNewSession } = useChatSessions();
+  const { messages, setMessages } = useChatSession(activeSessionId ?? undefined, {
+    scope: "DOCUMENT",
+    documentId: id,
+  });
+  const { sessions, startNewSession } = useChatSessions({
+    scope: "DOCUMENT",
+    documentId: id,
+  });
   const { setSelectedDocument } = useDocumentSelection();
   const { isOpen: evidenceOpen, openEvidence, closeEvidence, sources } = useEvidenceContext();
 
@@ -76,6 +84,37 @@ const DocumentWorkspacePage = () => {
     setMessages([]);
   }, [id, setMessages]);
 
+  useEffect(() => {
+    if (!activeSessionId && sessions.length > 0) {
+      setActiveSessionId(sessions[0].id);
+    }
+  }, [sessions, activeSessionId]);
+
+  useEffect(() => {
+    if (!newChatRequested) {
+      return;
+    }
+    const createSession = async () => {
+      if (!id) {
+        return;
+      }
+      try {
+        const session = await startNewSession();
+        setActiveSessionId(session.id);
+        setMessages([]);
+      } catch (error) {
+        setActiveSessionId(null);
+      } finally {
+        setSearchParams((params) => {
+          params.delete("new");
+          return params;
+        });
+      }
+    };
+
+    void createSession();
+  }, [id, newChatRequested, setMessages, setSearchParams, startNewSession]);
+
   const handleSend = async (content: string) => {
     if (!id) {
       return;
@@ -111,7 +150,10 @@ const DocumentWorkspacePage = () => {
     setMessages((prev) => [...prev, userMessage, pendingMessage]);
 
     try {
-      const response = await sendChatMessage(sessionId, content, { documentId: id });
+      const response = await sendChatMessage(sessionId, content, {
+        scope: "DOCUMENT",
+        documentId: id,
+      });
       if (!response.ok || !response.message) {
         setMessages((prev) => prev.filter((message) => message.id !== pendingId));
         return;

@@ -108,6 +108,17 @@ pnpm -C backend prisma:migrate
 - `GET /api/docs` — list documents (auth required)
 - `GET /api/docs/:id` — fetch document (auth required)
 
+## Chat scope rules
+
+PaperworkIQ enforces two chat scopes:
+
+- **WORKSPACE**: global chat across a workspace. Sessions have `scope="WORKSPACE"` and `documentId=null`.
+- **DOCUMENT**: document-specific chat. Sessions have `scope="DOCUMENT"` and a required `documentId`.
+
+API callers must send an explicit `scope` (and `documentId` for document scope) when creating sessions
+or posting messages. The backend rejects cross-scope reads or writes, so a document session cannot be
+used for workspace chat (and vice versa).
+
 ## Next steps
 
 - Add file uploads + storage (local/S3)
