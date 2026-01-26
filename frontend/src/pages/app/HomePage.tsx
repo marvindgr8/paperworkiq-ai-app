@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Search, X } from "lucide-react";
 import {
   deleteDocument,
   downloadDocumentFile,
@@ -328,8 +329,33 @@ const HomePage = () => {
                       Select any document to preview and open the full view.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-dashed border-zinc-200/70 bg-white px-4 py-3 text-xs text-slate-500">
-                    Use the sidebar search to filter documents.
+                  <div className="flex w-full max-w-md items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
+                    <Search className="h-4 w-4" />
+                    <input
+                      className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                      placeholder="Search documents"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          listRef.current?.focus();
+                        }
+                        if (event.key === "Escape") {
+                          setQuery("");
+                        }
+                      }}
+                    />
+                    {query ? (
+                      <button
+                        type="button"
+                        onClick={() => setQuery("")}
+                        className="rounded-full p-1 text-slate-400 transition hover:bg-zinc-100 hover:text-slate-600"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
