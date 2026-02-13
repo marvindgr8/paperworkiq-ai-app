@@ -29,6 +29,7 @@ import { getDroppedEntries } from "@/lib/droppedEntries";
 const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentFolderId = searchParams.get("folderId");
+  const createRequested = searchParams.get("create") === "1";
   const navigate = useNavigate();
 
   const [folders, setFolders] = useState<FolderDTO[]>([]);
@@ -108,6 +109,17 @@ const HomePage = () => {
     const timer = window.setTimeout(() => setToastMessage(null), 2500);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
+
+  useEffect(() => {
+    if (!createRequested) {
+      return;
+    }
+    setCreateOpen(true);
+    setSearchParams((params) => {
+      params.delete("create");
+      return params;
+    });
+  }, [createRequested, setSearchParams]);
 
   const visibleFolders = useMemo(
     () => folders.filter((folder) => (folder.parentId ?? null) === (currentFolderId ?? null)),
@@ -402,13 +414,19 @@ const HomePage = () => {
 
   useEffect(() => {
     registerSidebarActions({
-      openNewFolderModal: () => setCreateOpen(true),
+      openNewFolderModal: () => {
+        setCreateOpen(true);
+        setSearchParams((params) => {
+          params.delete("create");
+          return params;
+        });
+      },
       uploadFiles: handleUploadFiles,
       uploadFolder: handleUploadFolder,
     });
 
     return () => registerSidebarActions(null);
-  }, [handleUploadFiles, handleUploadFolder, registerSidebarActions]);
+  }, [handleUploadFiles, handleUploadFolder, registerSidebarActions, setSearchParams]);
 
   return (
     <div className="flex h-full flex-col">
@@ -510,14 +528,35 @@ const HomePage = () => {
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setCreateOpen(false)} />
+          <button
+            className="absolute inset-0 bg-black/40"
+            type="button"
+            onClick={() => {
+              setCreateOpen(false);
+              setSearchParams((params) => {
+                params.delete("create");
+                return params;
+              });
+            }}
+          />
           <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
             <h2 className="text-xl font-semibold text-slate-900">Create a new folder</h2>
             <div className="mt-4">
               <Input value={newFolderName} placeholder="Folder name" onChange={(event) => setNewFolderName(event.target.value)} />
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCreateOpen(false);
+                  setSearchParams((params) => {
+                    params.delete("create");
+                    return params;
+                  });
+                }}
+              >
+                Cancel
+              </Button>
               <Button onClick={() => void handleCreateFolder()} disabled={!newFolderName.trim()}>Create folder</Button>
             </div>
           </div>
