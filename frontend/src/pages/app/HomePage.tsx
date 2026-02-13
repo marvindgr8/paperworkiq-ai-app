@@ -193,10 +193,6 @@ const HomePage = () => {
         return [...prev, item.id];
       }
 
-      if (prev.length === 1 && prev[0] === item.id) {
-        return [];
-      }
-
       return [item.id];
     });
     setLastSelectedId(item.id);
