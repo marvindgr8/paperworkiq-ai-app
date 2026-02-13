@@ -22,6 +22,7 @@ const renderWithProviders = ({ docCount }: { docCount: number }) => {
     openUpload: vi.fn(),
     openNewFolder: vi.fn(),
     uploadFilesFromSidebar: vi.fn(),
+    uploadFolderFromSidebar: vi.fn(),
     registerSidebarActions: vi.fn(),
     notifyUploadComplete: vi.fn(),
     uploadSignal: 0,

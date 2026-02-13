@@ -31,6 +31,7 @@ export const createApp = () => {
   app.use("/api/docs", docsRouter);
   app.use("/api/folders", foldersRouter);
   app.use("/api/documents", docsRouter);
+  app.use("/api/files", docsRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/ai", aiRouter);
 

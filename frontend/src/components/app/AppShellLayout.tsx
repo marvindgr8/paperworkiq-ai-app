@@ -35,6 +35,13 @@ const AppShellLayout = () => {
     setUploadOpen(true);
   }, [sidebarActions]);
 
+  const uploadFolderFromSidebar = useCallback(async (files: File[]) => {
+    if (!sidebarActions?.uploadFolder) {
+      return;
+    }
+    await sidebarActions.uploadFolder(files);
+  }, [sidebarActions]);
+
   const gateContextValue = useMemo(
     () => ({
       docCount: count,
@@ -44,11 +51,12 @@ const AppShellLayout = () => {
       openUpload: () => setUploadOpen(true),
       openNewFolder: () => sidebarActions?.openNewFolderModal(),
       uploadFilesFromSidebar,
+      uploadFolderFromSidebar,
       registerSidebarActions: (actions: SidebarActions | null) => setSidebarActions(actions),
       notifyUploadComplete: () => setUploadSignal((prev) => prev + 1),
       uploadSignal,
     }),
-    [count, isLoading, error, refetch, sidebarActions, uploadFilesFromSidebar, uploadSignal]
+    [count, isLoading, error, refetch, sidebarActions, uploadFilesFromSidebar, uploadFolderFromSidebar, uploadSignal]
   );
 
   const handleUploaded = async () => {

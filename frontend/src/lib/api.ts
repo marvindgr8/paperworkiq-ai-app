@@ -52,6 +52,7 @@ export interface FolderDTO {
   name: string;
   ownerId: string;
   parentId?: string | null;
+  workspaceId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -260,6 +261,31 @@ export const uploadDocument = async (file: File, folderId?: string) => {
     formData.append("folderId", folderId);
   }
   const response = await fetch(`${baseUrl}/api/documents/upload`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+  return response.json();
+};
+
+
+export const uploadFolder = async (files: File[], parentFolderId?: string) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+  formData.append(
+    "paths",
+    JSON.stringify(
+      files.map((file) => {
+        const folderFile = file as File & { webkitRelativePath?: string };
+        return folderFile.webkitRelativePath || file.name;
+      })
+    )
+  );
+  if (parentFolderId) {
+    formData.append("parentFolderId", parentFolderId);
+  }
+
+  const response = await fetch(`${baseUrl}/api/files/upload-folder`, {
     method: "POST",
     headers: { ...authHeaders() },
     body: formData,

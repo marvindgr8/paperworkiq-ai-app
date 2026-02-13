@@ -71,4 +71,37 @@ describe("document uploads", () => {
 
     await cleanupUser(email);
   });
+
+  it("uploads a folder and recreates nested folders", async () => {
+    const email = `upload-folder-${Date.now()}@example.com`;
+
+    const registerResponse = await request(app).post("/api/auth/register").send({
+      email,
+      password: "password123",
+      name: "Dana Folder Upload",
+    });
+
+    expect(registerResponse.status).toBe(201);
+
+    const token = registerResponse.body.token as string;
+
+    const uploadResponse = await request(app)
+      .post("/api/files/upload-folder")
+      .set("Authorization", `Bearer ${token}`)
+      .field("paths", JSON.stringify(["Invoices/2026/january.png", "Invoices/2026/february.png"]))
+      .attach("files", Buffer.from("fake-a"), {
+        filename: "january.png",
+        contentType: "image/png",
+      })
+      .attach("files", Buffer.from("fake-b"), {
+        filename: "february.png",
+        contentType: "image/png",
+      });
+
+    expect(uploadResponse.status).toBe(201);
+    expect(uploadResponse.body.createdFoldersCount).toBeGreaterThanOrEqual(2);
+    expect(uploadResponse.body.createdFilesCount).toBe(2);
+
+    await cleanupUser(email);
+  });
 });

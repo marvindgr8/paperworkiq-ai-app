@@ -64,6 +64,7 @@ model Workspace {
   documents Document[]
   categories Category[]
   sessions  ChatSession[]
+  folders   Folder[]
   members   WorkspaceMember[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -142,17 +143,21 @@ model Document {
 }
 
 model Folder {
-  id        String    @id @default(cuid())
-  name      String
-  ownerId   String
-  parentId  String?
-  parent    Folder?   @relation("FolderParent", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Folder[]  @relation("FolderParent")
-  documents Document[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  ownerId     String
+  workspaceId String
+  parentId    String?
+  parent      Folder?   @relation("FolderParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Folder[]  @relation("FolderParent")
+  documents   Document[]
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
+  @@unique([workspaceId, parentId, name])
   @@index([ownerId])
+  @@index([workspaceId])
   @@index([parentId])
 }
 

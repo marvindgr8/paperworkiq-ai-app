@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Bell, FolderPlus, Home, Plus, Upload } from "lucide-react";
+import { Bell, FolderPlus, FolderUp, Home, Plus, Upload } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
 import { useAppGate } from "@/hooks/useAppGate";
@@ -15,11 +15,13 @@ const navItemClass = ({ isActive }: { isActive: boolean }) =>
   );
 
 const AppSidebar = () => {
-  const { openNewFolder, uploadFilesFromSidebar } = useAppGate();
+  const { openNewFolder, uploadFilesFromSidebar, uploadFolderFromSidebar } = useAppGate();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingFolder, setIsUploadingFolder] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -74,16 +76,40 @@ const AppSidebar = () => {
             event.target.value = "";
           }}
         />
+        <input
+          ref={folderInputRef}
+          className="hidden"
+          type="file"
+          // Non-standard but widely supported. This enables Drive-style folder picking.
+          // Browsers return only files, so empty directories are not represented.
+          webkitdirectory=""
+          directory=""
+          multiple
+          onChange={async (event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (files.length === 0) {
+              return;
+            }
+            setIsUploadingFolder(true);
+            try {
+              await uploadFolderFromSidebar(files);
+            } finally {
+              setIsUploadingFolder(false);
+              event.target.value = "";
+            }
+          }}
+        />
         <Button
           ref={buttonRef}
           className="w-full justify-center rounded-2xl"
           size="lg"
           aria-expanded={isOpen}
           aria-haspopup="menu"
+          disabled={isUploadingFolder}
           onClick={() => setIsOpen((prev) => !prev)}
         >
           <Plus className="mr-2 h-4 w-4" />
-          New
+          {isUploadingFolder ? "Uploading folder…" : "New"}
         </Button>
 
         {isOpen ? (
@@ -107,7 +133,8 @@ const AppSidebar = () => {
             </button>
             <button
               type="button"
-              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+              disabled={isUploadingFolder}
+              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setIsOpen(false);
                 fileInputRef.current?.click();
@@ -118,6 +145,21 @@ const AppSidebar = () => {
                 <span>File upload</span>
               </span>
             </button>
+            <button
+              type="button"
+              disabled={isUploadingFolder}
+              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => {
+                setIsOpen(false);
+                folderInputRef.current?.click();
+              }}
+            >
+              <span className="flex items-center gap-3">
+                <FolderUp className="h-4 w-4 text-gray-500" />
+                <span>Folder upload</span>
+              </span>
+            </button>
+
           </div>
         ) : null}
       </div>

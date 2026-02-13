@@ -84,7 +84,9 @@ describe("folders routes", () => {
 
     const user = await prisma.user.findUniqueOrThrow({ where: { email } });
     const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: user.id } });
-    const folder = await prisma.folder.create({ data: { name: "Inbox", ownerId: user.id } });
+    const folder = await prisma.folder.create({
+      data: { name: "Inbox", ownerId: user.id, workspaceId: workspace.id },
+    });
     const doc = await prisma.document.create({
       data: { userId: user.id, workspaceId: workspace.id, title: "Doc" },
     });
