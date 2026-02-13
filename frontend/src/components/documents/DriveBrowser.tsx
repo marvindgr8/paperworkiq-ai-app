@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
-import { FileText, Folder as FolderIcon, ImageIcon, MoreHorizontal } from "lucide-react";
+import { Check, FileText, Folder as FolderIcon, ImageIcon, MoreHorizontal } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 
@@ -19,14 +19,15 @@ interface BreadcrumbItem {
 interface DriveBrowserProps {
   breadcrumbs: BreadcrumbItem[];
   items: DriveItem[];
-  selectedIds: Set<string>;
+  selectedIds: string[];
   loading?: boolean;
   onNavigate: (folderId: string | null) => void;
-  onSelect: (item: DriveItem, event: MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (item: DriveItem, event: MouseEvent<HTMLDivElement>) => void;
   onOpen: (item: DriveItem) => void;
   onRename: (item: DriveItem) => void;
   onMove: (item: DriveItem) => void;
   onDelete: (item: DriveItem) => void;
+  onClearSelection: () => void;
 }
 
 const formatDate = (value?: string) => {
@@ -72,8 +73,11 @@ const DriveBrowser = ({
   onRename,
   onMove,
   onDelete,
+  onClearSelection,
 }: DriveBrowserProps) => {
   const [searchQuery, setSearchQuery] = useState("");
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -106,35 +110,51 @@ const DriveBrowser = ({
         onChange={(event) => setSearchQuery(event.target.value)}
       />
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200/70 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200/70 bg-white" onClick={onClearSelection}>
         <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_120px_56px] border-b border-zinc-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <span>Name</span>
           <span>Type</span>
           <span>Modified</span>
           <span />
         </div>
-        <div className="divide-y divide-zinc-100">
+        <div className="space-y-1 p-2">
           {loading ? <p className="px-4 py-8 text-sm text-slate-500">Loading items…</p> : null}
           {!loading && filteredItems.length === 0 ? (
             <p className="px-4 py-8 text-sm text-slate-500">No files yet. Upload or create a folder.</p>
           ) : null}
           {!loading
             ? filteredItems.map((item) => {
-                const selected = selectedIds.has(item.id);
+                const isSelected = selectedIdSet.has(item.id);
                 return (
-                  <div key={item.id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_120px_56px] items-center px-4 py-2 text-sm">
-                    <button
-                      type="button"
-                      onClick={(event) => onSelect(item, event)}
-                      onDoubleClick={() => onOpen(item)}
-                      className={`flex items-center gap-2 text-left ${selected ? "font-semibold text-slate-900" : "text-slate-700"}`}
-                    >
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect(item, event);
+                    }}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      onOpen(item);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        onOpen(item);
+                      }
+                    }}
+                    className={`grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_120px_56px] items-center rounded-lg p-3 text-sm transition ${
+                      isSelected ? "border border-blue-400 bg-blue-50" : "border border-transparent hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className={`flex items-center gap-2 text-left ${isSelected ? "font-semibold text-slate-900" : "text-slate-700"}`}>
+                      {isSelected ? <Check className="h-4 w-4 text-blue-600" /> : null}
                       {getIcon(item)}
                       <span className="truncate">{item.name}</span>
-                    </button>
+                    </div>
                     <span className="truncate text-slate-500">{getTypeLabel(item)}</span>
                     <span className="text-xs text-slate-500">{formatDate(item.updatedAt)}</span>
-                    <div className="relative flex justify-end">
+                    <div className="relative flex justify-end" onClick={(event) => event.stopPropagation()}>
                       <details>
                         <summary className="list-none">
                           <span className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-zinc-200 text-slate-500 hover:bg-zinc-50">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
 import DriveBrowser, { type DriveItem } from "@/components/documents/DriveBrowser";
+import SelectionBar from "@/components/documents/SelectionBar";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -15,8 +16,8 @@ import {
   listFolders,
   moveDocument,
   moveFolder,
-  updateFolder,
   updateDocument,
+  updateFolder,
   uploadDocument,
   type DocumentDTO,
   type FolderDTO,
@@ -31,7 +32,8 @@ const HomePage = () => {
 
   const [folders, setFolders] = useState<FolderDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -71,7 +73,8 @@ const HomePage = () => {
   }, [currentFolderId, uploadFirst, uploadSignal]);
 
   useEffect(() => {
-    setSelectedIds(new Set());
+    setSelectedItems([]);
+    setLastSelectedId(null);
   }, [currentFolderId]);
 
   useEffect(() => {
@@ -124,11 +127,13 @@ const HomePage = () => {
     return [...crumbs, ...branch];
   }, [currentFolderId, folderMap]);
 
-  const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds]);
-  const selectedPrimary = selectedItems[0];
+  const selectedDriveItems = useMemo(() => {
+    const selectedIdSet = new Set(selectedItems);
+    return items.filter((item) => selectedIdSet.has(item.id));
+  }, [items, selectedItems]);
+
+  const selectedPrimary = selectedDriveItems[0];
   const canRename = selectedItems.length === 1;
-  const canMove = selectedItems.length >= 1;
-  const canDelete = selectedItems.length >= 1;
 
   const openFolder = (folderId: string | null) => {
     setSearchParams((params) => {
@@ -141,19 +146,38 @@ const HomePage = () => {
     });
   };
 
-  const handleSelect = (item: DriveItem, event: MouseEvent<HTMLButtonElement>) => {
-    setSelectedIds((prev) => {
-      if (event.metaKey || event.ctrlKey) {
-        const next = new Set(prev);
-        if (next.has(item.id)) {
-          next.delete(item.id);
-        } else {
-          next.add(item.id);
+  const clearSelection = () => {
+    setSelectedItems([]);
+    setLastSelectedId(null);
+  };
+
+  const handleSelect = (item: DriveItem, event: MouseEvent<HTMLDivElement>) => {
+    setSelectedItems((prev) => {
+      if (event.shiftKey && lastSelectedId) {
+        const currentIndex = items.findIndex((entry) => entry.id === item.id);
+        const lastIndex = items.findIndex((entry) => entry.id === lastSelectedId);
+        if (currentIndex >= 0 && lastIndex >= 0) {
+          const [start, end] = currentIndex < lastIndex ? [currentIndex, lastIndex] : [lastIndex, currentIndex];
+          const rangeIds = items.slice(start, end + 1).map((entry) => entry.id);
+          const baseIds = event.metaKey || event.ctrlKey ? prev : [];
+          return Array.from(new Set([...baseIds, ...rangeIds]));
         }
-        return next;
       }
-      return new Set([item.id]);
+
+      if (event.metaKey || event.ctrlKey) {
+        if (prev.includes(item.id)) {
+          return prev.filter((id) => id !== item.id);
+        }
+        return [...prev, item.id];
+      }
+
+      if (prev.length === 1 && prev[0] === item.id) {
+        return [];
+      }
+
+      return [item.id];
     });
+    setLastSelectedId(item.id);
   };
 
   const handleOpen = (item: DriveItem) => {
@@ -162,6 +186,15 @@ const HomePage = () => {
       return;
     }
     navigate(`/app/doc/${item.id}`);
+  };
+
+  const refreshItems = async () => {
+    const [folderResponse, docResponse] = await Promise.all([
+      listFolders(),
+      listDocuments({ folderId: currentFolderId ?? "root" }),
+    ]);
+    setFolders(folderResponse.ok ? (folderResponse.folders ?? []) : []);
+    setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
   };
 
   const handleCreateFolder = async () => {
@@ -178,7 +211,7 @@ const HomePage = () => {
     }
   };
 
-  const handleRename = async () => {
+  const handleRenameSelected = async () => {
     if (!selectedPrimary) {
       return;
     }
@@ -190,17 +223,21 @@ const HomePage = () => {
     } else {
       const response = await updateDocument(selectedPrimary.id, { name: renameValue.trim() });
       if (response.ok) {
-        setDocuments((prev) => prev.map((doc) => (doc.id === selectedPrimary.id ? { ...doc, title: response.doc.title, fileName: response.doc.fileName } : doc)));
+        setDocuments((prev) =>
+          prev.map((doc) =>
+            doc.id === selectedPrimary.id ? { ...doc, title: response.doc.title, fileName: response.doc.fileName } : doc
+          )
+        );
       }
     }
     setRenameOpen(false);
     setRenameValue("");
+    clearSelection();
     setToastMessage("Renamed");
   };
 
-  const handleDelete = async () => {
-    const targets = [...selectedItems];
-    for (const target of targets) {
+  const handleDeleteSelected = async () => {
+    for (const target of selectedDriveItems) {
       if (target.kind === "folder") {
         await deleteFolder(target.id);
       } else {
@@ -208,15 +245,16 @@ const HomePage = () => {
       }
     }
     setDeleteOpen(false);
-    setSelectedIds(new Set());
-    setFolders((prev) => prev.filter((folder) => !selectedIds.has(folder.id)));
-    setDocuments((prev) => prev.filter((doc) => !selectedIds.has(doc.id)));
+    const selectedIdSet = new Set(selectedItems);
+    setFolders((prev) => prev.filter((folder) => !selectedIdSet.has(folder.id)));
+    setDocuments((prev) => prev.filter((doc) => !selectedIdSet.has(doc.id)));
+    clearSelection();
     setToastMessage("Deleted");
   };
 
-  const handleMove = async () => {
+  const handleMoveSelected = async () => {
     const destinationId = moveDestination === "root" ? null : moveDestination;
-    for (const target of selectedItems) {
+    for (const target of selectedDriveItems) {
       if (target.kind === "folder") {
         await moveFolder(target.id, { parentId: destinationId });
       } else {
@@ -224,14 +262,9 @@ const HomePage = () => {
       }
     }
     setMoveOpen(false);
-    setSelectedIds(new Set());
+    clearSelection();
     setToastMessage("Moved");
-    const [folderResponse, docResponse] = await Promise.all([
-      listFolders(),
-      listDocuments({ folderId: currentFolderId ?? "root" }),
-    ]);
-    setFolders(folderResponse.ok ? (folderResponse.folders ?? []) : []);
-    setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
+    await refreshItems();
   };
 
   return (
@@ -240,84 +273,88 @@ const HomePage = () => {
         title="Home"
         subtitle="Browse folders and files, then open a document workspace."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <input
-              ref={uploadInputRef}
-              className="hidden"
-              type="file"
-              accept="application/pdf,image/*"
-              multiple
-              onChange={async (event) => {
-                const files = Array.from(event.target.files ?? []);
-                if (files.length === 0) {
-                  return;
-                }
-                await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
-                event.target.value = "";
-                setToastMessage("Uploaded");
-                const response = await listDocuments({ folderId: currentFolderId ?? "root" });
-                setDocuments(response.ok ? (response.docs ?? []) : []);
-              }}
-            />
-            <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-              New Folder
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => uploadInputRef.current?.click()}>
-              Upload
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setMoveOpen(true)} disabled={!canMove}>
-              Move
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (!selectedPrimary) {
-                  return;
-                }
-                setRenameValue(selectedPrimary.name);
-                setRenameOpen(true);
-              }}
-              disabled={!canRename}
-            >
-              Rename
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setDeleteOpen(true)} disabled={!canDelete}>
-              Delete
-            </Button>
-          </div>
+          selectedItems.length === 0 ? (
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={uploadInputRef}
+                className="hidden"
+                type="file"
+                accept="application/pdf,image/*"
+                multiple
+                onChange={async (event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  if (files.length === 0) {
+                    return;
+                  }
+                  await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
+                  event.target.value = "";
+                  setToastMessage("Uploaded");
+                  const response = await listDocuments({ folderId: currentFolderId ?? "root" });
+                  setDocuments(response.ok ? (response.docs ?? []) : []);
+                }}
+              />
+              <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+                New Folder
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => uploadInputRef.current?.click()}>
+                Upload
+              </Button>
+            </div>
+          ) : null
         }
       />
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-6 py-6" onClick={clearSelection}>
         {uploadFirst ? (
           <UploadFirstEmptyState
             title="Upload your first document to get started."
             description="Add a document to unlock summaries, categories, and grounded answers."
           />
         ) : (
-          <DriveBrowser
-            breadcrumbs={breadcrumbs}
-            items={items}
-            selectedIds={selectedIds}
-            loading={loading}
-            onNavigate={openFolder}
-            onSelect={handleSelect}
-            onOpen={handleOpen}
-            onRename={(item) => {
-              setSelectedIds(new Set([item.id]));
-              setRenameValue(item.name);
-              setRenameOpen(true);
-            }}
-            onMove={(item) => {
-              setSelectedIds(new Set([item.id]));
-              setMoveOpen(true);
-            }}
-            onDelete={(item) => {
-              setSelectedIds(new Set([item.id]));
-              setDeleteOpen(true);
-            }}
-          />
+          <div onClick={(event) => event.stopPropagation()}>
+            {selectedItems.length > 0 ? (
+              <SelectionBar
+                selectedCount={selectedItems.length}
+                renameDisabled={!canRename}
+                onClearSelection={clearSelection}
+                onMove={() => setMoveOpen(true)}
+                onRename={() => {
+                  if (!selectedPrimary) {
+                    return;
+                  }
+                  setRenameValue(selectedPrimary.name);
+                  setRenameOpen(true);
+                }}
+                onDelete={() => setDeleteOpen(true)}
+              />
+            ) : null}
+            <DriveBrowser
+              breadcrumbs={breadcrumbs}
+              items={items}
+              selectedIds={selectedItems}
+              loading={loading}
+              onNavigate={openFolder}
+              onSelect={handleSelect}
+              onOpen={handleOpen}
+              onClearSelection={clearSelection}
+              onRename={(item) => {
+                setSelectedItems([item.id]);
+                setLastSelectedId(item.id);
+                setRenameValue(item.name);
+                setRenameOpen(true);
+              }}
+              onMove={(item) => {
+                setSelectedItems([item.id]);
+                setLastSelectedId(item.id);
+                setMoveOpen(true);
+              }}
+              onDelete={(item) => {
+                setSelectedItems([item.id]);
+                setLastSelectedId(item.id);
+                setDeleteOpen(true);
+              }}
+            />
+          </div>
         )}
       </div>
 
@@ -327,7 +364,7 @@ const HomePage = () => {
         description="This can’t be undone."
         confirmLabel="Delete"
         onCancel={() => setDeleteOpen(false)}
-        onConfirm={handleDelete}
+        onConfirm={handleDeleteSelected}
       />
 
       {createOpen ? (
@@ -356,7 +393,7 @@ const HomePage = () => {
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
-              <Button onClick={() => void handleRename()} disabled={!renameValue.trim()}>Save</Button>
+              <Button onClick={() => void handleRenameSelected()} disabled={!renameValue.trim()}>Save</Button>
             </div>
           </div>
         </div>
@@ -383,7 +420,7 @@ const HomePage = () => {
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
-              <Button onClick={() => void handleMove()}>Move</Button>
+              <Button onClick={() => void handleMoveSelected()}>Move</Button>
             </div>
           </div>
         </div>
