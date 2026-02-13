@@ -29,6 +29,7 @@ import DocumentActionsMenu from "@/components/documents/DocumentActionsMenu";
 import AppHeader from "@/components/app/AppHeader";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
 import { useSidebarSearch } from "@/hooks/useSidebarSearch";
 
@@ -47,6 +48,8 @@ const HomePage = () => {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DocumentDTO | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
   const { docCount, isLoading, uploadSignal, openUpload } = useAppGate();
   const { setSelectedDocument } = useDocumentSelection();
   const { query, setQuery } = useSidebarSearch();
@@ -293,13 +296,15 @@ const HomePage = () => {
   };
 
   const handleCreateFolder = async () => {
-    const name = window.prompt("Folder name");
-    if (!name) {
+    const trimmedName = newFolderName.trim();
+    if (!trimmedName) {
       return;
     }
-    const response = await createFolder({ name, parentId: currentFolderId });
+    const response = await createFolder({ name: trimmedName, parentId: currentFolderId });
     if (response.ok) {
       setFolders((prev) => [...prev, response.folder]);
+      setNewFolderName("");
+      setIsCreateFolderModalOpen(false);
     }
   };
 
@@ -386,7 +391,13 @@ const HomePage = () => {
         subtitle="Browse folders and files, then launch AI chat in context."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={handleCreateFolder}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setIsCreateFolderModalOpen(true);
+              }}
+            >
               New Folder
             </Button>
             <Button size="sm" variant="outline" onClick={handleRenameFolder} disabled={!selectedFolder}>
@@ -609,6 +620,58 @@ const HomePage = () => {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      {isCreateFolderModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            className="absolute inset-0 bg-black/40"
+            onClick={() => {
+              setIsCreateFolderModalOpen(false);
+              setNewFolderName("");
+            }}
+            type="button"
+            aria-label="Close create folder modal"
+          />
+          <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Folder
+              </p>
+              <h2 className="text-xl font-semibold text-slate-900">Create a new folder</h2>
+              <p className="text-sm text-slate-500">Give your folder a name to organize files.</p>
+            </div>
+            <div className="mt-5">
+              <Input
+                autoFocus
+                value={newFolderName}
+                placeholder="Folder name"
+                onChange={(event) => {
+                  setNewFolderName(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleCreateFolder();
+                  }
+                }}
+              />
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsCreateFolderModalOpen(false);
+                  setNewFolderName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleCreateFolder()} disabled={!newFolderName.trim()}>
+                Create folder
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {toastMessage ? (
         <Toast
           message={toastMessage}
