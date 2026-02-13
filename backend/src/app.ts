@@ -7,6 +7,7 @@ import { docsRouter } from "./routes/docs.js";
 import { workspacesRouter } from "./routes/workspaces.js";
 import { chatRouter } from "./routes/chat.js";
 import { categoriesRouter } from "./routes/categories.js";
+import { foldersRouter } from "./routes/folders.js";
 import { aiRouter } from "./routes/ai.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { env } from "./lib/env.js";
@@ -28,6 +29,7 @@ export const createApp = () => {
   app.use("/api/workspaces", workspacesRouter);
   app.use("/api/categories", categoriesRouter);
   app.use("/api/docs", docsRouter);
+  app.use("/api/folders", foldersRouter);
   app.use("/api/documents", docsRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/ai", aiRouter);

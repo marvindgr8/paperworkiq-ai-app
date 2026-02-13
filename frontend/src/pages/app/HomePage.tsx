@@ -2,18 +2,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Search, X } from "lucide-react";
 import {
+  createFolder,
   deleteDocument,
+  deleteFolder,
   downloadDocumentFile,
   getDocument,
   listCategories,
   listDocuments,
+  listFolders,
+  moveDocument,
+  moveFolder,
   reprocessDocument,
   searchDocuments,
+  updateFolder,
   type CategoryDTO,
   type DocumentDTO,
+  type FolderDTO,
 } from "@/lib/api";
 import UploadPanel from "@/components/documents/UploadPanel";
-import DocumentList from "@/components/documents/DocumentList";
+import FileExplorer from "@/components/documents/FileExplorer";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import { useAppGate } from "@/hooks/useAppGate";
 import { useDocumentSelection } from "@/hooks/useDocumentSelection";
@@ -32,6 +39,9 @@ const HomePage = () => {
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
+  const [folders, setFolders] = useState<FolderDTO[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<FolderDTO | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentDTO | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -76,6 +86,7 @@ const HomePage = () => {
       try {
         const response = await listDocuments({
           categoryId: activeCategoryId ?? undefined,
+          folderId: currentFolderId ?? "root",
         });
         if (response.ok) {
           setDocuments(response.docs ?? []);
@@ -97,7 +108,7 @@ const HomePage = () => {
       return;
     }
     void fetchDocs();
-  }, [activeCategoryId, docCount, isLoading, uploadSignal]);
+  }, [activeCategoryId, currentFolderId, docCount, isLoading, uploadSignal]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -121,6 +132,26 @@ const HomePage = () => {
       return;
     }
     void fetchCategories();
+  }, [docCount, isLoading, uploadSignal]);
+
+  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const response = await listFolders();
+        setFolders(response.ok ? (response.folders ?? []) : []);
+      } catch (error) {
+        setFolders([]);
+      }
+    };
+
+    if (isLoading) {
+      return;
+    }
+    if (docCount === 0) {
+      setFolders([]);
+      return;
+    }
+    void fetchFolders();
   }, [docCount, isLoading, uploadSignal]);
 
   useEffect(() => {
@@ -257,22 +288,77 @@ const HomePage = () => {
 
   const handleSelectDocument = (doc: DocumentDTO) => {
     setSelectedDocumentId(doc.id);
+    setSelectedFolder(null);
     setSelectedDocument(doc);
   };
 
-  const duplicateHashes = useMemo(() => {
-    const counts = new Map<string, number>();
-    documents.forEach((doc) => {
-      if (doc.fileHash) {
-        counts.set(doc.fileHash, (counts.get(doc.fileHash) ?? 0) + 1);
+  const handleCreateFolder = async () => {
+    const name = window.prompt("Folder name");
+    if (!name) {
+      return;
+    }
+    const response = await createFolder({ name, parentId: currentFolderId });
+    if (response.ok) {
+      setFolders((prev) => [...prev, response.folder]);
+    }
+  };
+
+  const handleRenameFolder = async () => {
+    if (!selectedFolder) {
+      return;
+    }
+    const name = window.prompt("Rename folder", selectedFolder.name);
+    if (!name) {
+      return;
+    }
+    const response = await updateFolder(selectedFolder.id, { name });
+    if (response.ok) {
+      setFolders((prev) =>
+        prev.map((folder) => (folder.id === selectedFolder.id ? response.folder : folder))
+      );
+      setSelectedFolder(response.folder);
+    }
+  };
+
+  const handleDeleteFolder = async () => {
+    if (!selectedFolder) {
+      return;
+    }
+    const response = await deleteFolder(selectedFolder.id);
+    if (response.ok) {
+      setFolders((prev) => prev.filter((folder) => folder.id !== selectedFolder.id));
+      if (currentFolderId === selectedFolder.id) {
+        setCurrentFolderId(null);
       }
-    });
-    return new Set(
-      Array.from(counts.entries())
-        .filter(([, count]) => count > 1)
-        .map(([hash]) => hash)
-    );
-  }, [documents]);
+      setSelectedFolder(null);
+    }
+  };
+
+  const handleMoveSelection = async () => {
+    const destination = window.prompt("Move to folder id (blank for root)") ?? "";
+    const parentId = destination || null;
+
+    if (selectedFolder) {
+      const response = await moveFolder(selectedFolder.id, { parentId });
+      if (response.ok) {
+        setFolders((prev) =>
+          prev.map((folder) => (folder.id === selectedFolder.id ? response.folder : folder))
+        );
+      }
+      return;
+    }
+
+    if (selectedDocumentId) {
+      const response = await moveDocument(selectedDocumentId, { folderId: parentId });
+      if (response.ok) {
+        setDocuments((prev) =>
+          prev.map((doc) =>
+            doc.id === selectedDocumentId ? { ...doc, folderId: response.doc.folderId } : doc
+          )
+        );
+      }
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) {
@@ -297,11 +383,40 @@ const HomePage = () => {
     <div className="flex h-full flex-col">
       <AppHeader
         title="Home"
-        subtitle="Upload documents to keep everything organized and ready for AI answers."
+        subtitle="Browse folders and files, then launch AI chat in context."
         actions={
-          <Button size="sm" onClick={openUpload}>
-            Upload
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={handleCreateFolder}>
+              New Folder
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleRenameFolder} disabled={!selectedFolder}>
+              Rename
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDeleteFolder} disabled={!selectedFolder}>
+              Delete
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleMoveSelection}>
+              Move
+            </Button>
+            <Button size="sm" onClick={openUpload}>
+              Upload
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (selectedDocumentId) {
+                  navigate(`/app/doc/${selectedDocumentId}`);
+                  return;
+                }
+                if (selectedFolder) {
+                  navigate(`/app/chat?folderId=${selectedFolder.id}`);
+                }
+              }}
+              disabled={!selectedFolder && !selectedDocumentId}
+            >
+              Chat
+            </Button>
+          </div>
         }
       />
 
@@ -398,15 +513,18 @@ const HomePage = () => {
                       : "No matching documents yet."}
                   </div>
                 ) : (
-                  <DocumentList
+                  <FileExplorer
+                    folders={folders}
                     documents={displayedDocs}
-                    onSelect={handleSelectDocument}
-                    onOpen={(doc) => navigate(`/app/doc/${doc.id}`)}
-                    onDelete={(doc) => setDeleteTarget(doc)}
-                    onDownload={(doc) => {
-                      void downloadDocumentFile(doc.id, doc.fileName ?? undefined);
+                    currentFolderId={currentFolderId}
+                    onOpenFolder={setCurrentFolderId}
+                    onSelectDocument={handleSelectDocument}
+                    onSelectFolder={(folder) => {
+                      setSelectedFolder(folder);
+                      setSelectedDocumentId(null);
                     }}
-                    duplicateHashes={duplicateHashes}
+                    selectedDocumentId={selectedDocumentId}
+                    selectedFolderId={selectedFolder?.id}
                   />
                 )}
               </div>

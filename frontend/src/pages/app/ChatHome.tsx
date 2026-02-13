@@ -15,10 +15,12 @@ import AppHeader from "@/components/app/AppHeader";
 const ChatHome = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const newChatRequested = searchParams.get("new") === "1";
-  const { sessions, startNewSession } = useChatSessions({ scope: "WORKSPACE" });
+  const folderId = searchParams.get("folderId") ?? undefined;
+  const { sessions, startNewSession } = useChatSessions({ scope: "WORKSPACE", folderId });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { messages, setMessages } = useChatSession(activeSessionId ?? undefined, {
     scope: "WORKSPACE",
+    folderId,
   });
   const { docCount, isLoading, openUpload } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
@@ -84,7 +86,7 @@ const ChatHome = () => {
     setMessages((prev) => [...prev, userMessage, pendingMessage]);
 
     try {
-      const response = await sendChatMessage(sessionId, content, { scope: "WORKSPACE" });
+      const response = await sendChatMessage(sessionId, content, { scope: "WORKSPACE", folderId });
       if (!response.ok || !response.message) {
         setMessages((prev) => prev.filter((message) => message.id !== pendingId));
         return;
@@ -106,7 +108,7 @@ const ChatHome = () => {
     <div className="flex h-full flex-col">
       <AppHeader
         title="Chat"
-        subtitle="Ask anything about your documents, bills, and records."
+        subtitle={folderId ? "Ask anything about files in this folder." : "Ask anything about your documents, bills, and records."}
         actions={
           <>
             <Button size="sm" onClick={openUpload}>

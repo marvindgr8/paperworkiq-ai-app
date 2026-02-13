@@ -4,13 +4,14 @@ import type { ChatMessageDTO } from "@/types/chat";
 
 export const useChatSession = (
   sessionId?: string | null,
-  options?: { scope?: ChatScope; documentId?: string }
+  options?: { scope?: ChatScope; documentId?: string; folderId?: string }
 ) => {
   const [messages, setMessages] = useState<ChatMessageDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scope = options?.scope;
   const documentId = options?.documentId;
+  const folderId = options?.folderId;
 
   const fetchMessages = useCallback(async () => {
     if (!sessionId) {
@@ -19,7 +20,7 @@ export const useChatSession = (
     }
     try {
       setLoading(true);
-      const response = await listChatMessages(sessionId, { scope, documentId });
+      const response = await listChatMessages(sessionId, { scope, documentId, folderId });
       if (!response.ok) {
         setMessages([]);
         setError(response.error ?? "Unable to load messages");
@@ -33,7 +34,7 @@ export const useChatSession = (
     } finally {
       setLoading(false);
     }
-  }, [sessionId, scope, documentId]);
+  }, [sessionId, scope, documentId, folderId]);
 
   useEffect(() => {
     void fetchMessages();

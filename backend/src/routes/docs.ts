@@ -25,6 +25,7 @@ const createDocSchema = z.object({
   fileName: z.string().optional(),
   mimeType: z.string().optional(),
   sizeBytes: z.number().int().optional(),
+  folderId: z.string().optional().nullable(),
 });
 
 const getQueryValue = (value: string | string[] | undefined) => {
@@ -32,6 +33,19 @@ const getQueryValue = (value: string | string[] | undefined) => {
     return value[0];
   }
   return value;
+};
+
+
+const moveDocumentSchema = z.object({
+  folderId: z.string().optional().nullable(),
+});
+
+const ensureFolderAccess = async (folderId: string, userId: string) => {
+  const folder = await prisma.folder.findUnique({ where: { id: folderId } });
+  if (!folder || folder.ownerId !== userId) {
+    return null;
+  }
+  return folder;
 };
 
 await ensureUploadDir();
@@ -67,6 +81,13 @@ docsRouter.post(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    if (data.folderId) {
+      const folder = await ensureFolderAccess(data.folderId, userId);
+      if (!folder) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
+    }
+
     const doc = await prisma.document.create({
       data: {
         userId,
@@ -76,6 +97,7 @@ docsRouter.post(
         mimeType: data.mimeType,
         sizeBytes: data.sizeBytes,
         aiStatus: "PENDING",
+        folderId: data.folderId ?? null,
       },
     });
 
@@ -98,6 +120,15 @@ docsRouter.post(
     );
     if (!workspace) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const folderId = typeof req.body.folderId === "string" ? req.body.folderId : undefined;
+
+    if (folderId) {
+      const folder = await ensureFolderAccess(folderId, userId);
+      if (!folder) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
     }
 
     const file = req.file;
@@ -127,6 +158,7 @@ docsRouter.post(
           fileHash,
           status: "PROCESSING",
           aiStatus: "PENDING",
+          folderId: folderId ?? null,
         },
         include: { category: { select: { id: true, name: true } } },
       });
@@ -159,6 +191,7 @@ docsRouter.get(
 
     const categoryId = getQueryValue(req.query.categoryId);
     const categoryName = getQueryValue(req.query.categoryName);
+    const folderId = getQueryValue(req.query.folderId);
 
     const where = {
       workspaceId: workspace.id,
@@ -166,6 +199,7 @@ docsRouter.get(
       ...(categoryName
         ? { category: { name: { equals: categoryName, mode: "insensitive" } } }
         : {}),
+      ...(folderId === "root" ? { folderId: null } : folderId ? { folderId } : {}),
     };
 
     const docs = await prisma.document.findMany({
@@ -182,6 +216,7 @@ docsRouter.get(
         fileHash: true,
         categoryLabel: true,
         category: { select: { id: true, name: true } },
+        folderId: true,
       },
     });
 
@@ -249,6 +284,7 @@ docsRouter.get(
         categoryLabel: true,
         previewImageUrl: true,
         category: { select: { id: true, name: true } },
+        folderId: true,
       },
     });
 
@@ -304,6 +340,7 @@ docsRouter.get(
       where: { id: req.params.id },
       include: {
         category: { select: { id: true, name: true } },
+        folderId: true,
         fields: true,
       },
     });
@@ -420,6 +457,44 @@ docsRouter.post(
   })
 );
 
+
+
+docsRouter.post(
+  "/:id/move",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const data = moveDocumentSchema.parse(req.body ?? {});
+
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+    if (!doc) {
+      return res.status(404).json({ ok: false, error: "Document not found" });
+    }
+
+    const canAccess = await ensureWorkspaceAccess(userId, doc.workspaceId);
+    if (!canAccess) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    if (data.folderId) {
+      const folder = await ensureFolderAccess(data.folderId, userId);
+      if (!folder) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: doc.id },
+      data: { folderId: data.folderId ?? null },
+      select: { id: true, folderId: true },
+    });
+
+    res.json({ ok: true, doc: updated });
+  })
+);
 docsRouter.delete(
   "/:id",
   asyncHandler(async (req: AuthenticatedRequest, res) => {

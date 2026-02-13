@@ -16,17 +16,20 @@ const createSessionSchema = z.object({
   workspaceId: z.string().optional(),
   scope: chatScopeSchema.optional(),
   documentId: z.string().optional(),
+  folderId: z.string().optional(),
 });
 
 const messageSchema = z.object({
   content: z.string().min(1),
   scope: chatScopeSchema.optional(),
   documentId: z.string().optional(),
+  folderId: z.string().optional(),
 });
 
 const querySchema = z.object({
   scope: chatScopeSchema.optional(),
   documentId: z.string().optional(),
+  folderId: z.string().optional(),
 });
 
 const getQueryParam = (value: string | string[] | undefined) => {
@@ -63,7 +66,8 @@ chatRouter.get(
 
     const rawScope = getQueryParam(req.query.scope);
     const rawDocumentId = getQueryParam(req.query.documentId);
-    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId });
+    const rawFolderId = getQueryParam(req.query.folderId);
+    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId, folderId: rawFolderId });
     const scope = resolveScope(query.scope, query.documentId);
 
     if (scope === ChatScope.DOCUMENT && !query.documentId) {
@@ -120,6 +124,19 @@ chatRouter.post(
     if (scope === ChatScope.WORKSPACE && data.documentId) {
       return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
     }
+    if (data.folderId) {
+      const folder = await prisma.folder.findUnique({ where: { id: data.folderId } });
+      if (!folder || folder.ownerId !== userId) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
+    }
+
+    if (data.folderId) {
+      const folder = await prisma.folder.findUnique({ where: { id: data.folderId } });
+      if (!folder || folder.ownerId !== userId) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
+    }
 
     if (scope === ChatScope.DOCUMENT && data.documentId) {
       const document = await prisma.document.findUnique({
@@ -172,7 +189,8 @@ chatRouter.get(
 
     const rawScope = getQueryParam(req.query.scope);
     const rawDocumentId = getQueryParam(req.query.documentId);
-    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId });
+    const rawFolderId = getQueryParam(req.query.folderId);
+    const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId, folderId: rawFolderId });
     const scope = resolveScope(query.scope, query.documentId ?? session.documentId);
 
     if (scope !== session.scope) {
@@ -288,7 +306,10 @@ chatRouter.post(
       scope === ChatScope.DOCUMENT
         ? []
         : await prisma.document.findMany({
-            where: { workspaceId: session.workspaceId },
+            where: {
+              workspaceId: session.workspaceId,
+              ...(data.folderId ? { folderId: data.folderId } : {}),
+            },
             orderBy: { createdAt: "desc" },
             take: 10,
             select: {
@@ -470,6 +491,8 @@ chatRouter.post(
       citations.length === 0
         ? isDocumentScoped
           ? "I couldn't find a matching passage in this document yet."
+          : data.folderId
+          ? "I couldn't find a matching passage in that folder yet."
           : "I couldn't find a matching passage in your documents yet."
         : "I’ve pulled the most relevant passages and will answer with citations.";
 
