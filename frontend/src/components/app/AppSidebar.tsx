@@ -58,7 +58,7 @@ const AppSidebar = () => {
         </div>
       </div>
 
-      <div className="relative space-y-3">
+      <div className="relative">
         <input
           ref={fileInputRef}
           className="hidden"
@@ -83,11 +83,15 @@ const AppSidebar = () => {
           onClick={() => setIsOpen((prev) => !prev)}
         >
           <Plus className="mr-2 h-4 w-4" />
-          + New
+          New
         </Button>
 
         {isOpen ? (
-          <div ref={menuRef} role="menu" className="mt-2 w-56 rounded-lg border bg-white p-1 shadow-lg">
+          <div
+            ref={menuRef}
+            role="menu"
+            className="absolute left-0 top-full z-20 mt-2 w-56 rounded-lg border bg-white p-1 shadow-lg"
+          >
             <button
               type="button"
               className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
