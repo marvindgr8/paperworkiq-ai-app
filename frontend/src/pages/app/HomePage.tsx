@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
 import DriveBrowser, { type DriveItem } from "@/components/documents/DriveBrowser";
@@ -18,12 +18,13 @@ import {
   moveFolder,
   updateDocument,
   updateFolder,
-  uploadDocument,
+  uploadFiles,
   uploadFolder,
   type DocumentDTO,
   type FolderDTO,
 } from "@/lib/api";
 import { useAppGate } from "@/hooks/useAppGate";
+import { getDroppedEntries } from "@/lib/droppedEntries";
 
 const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,7 +36,11 @@ const HomePage = () => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [dragMessage, setDragMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const dragDepthRef = useRef(0);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -47,6 +52,11 @@ const HomePage = () => {
   const { docCount, isLoading, uploadSignal, registerSidebarActions } = useAppGate();
 
   const uploadFirst = !isLoading && docCount === 0;
+
+  const clearSelection = useCallback(() => {
+    setSelectedItems([]);
+    setLastSelectedId(null);
+  }, []);
 
   useEffect(() => {
     const run = async () => {
@@ -73,9 +83,23 @@ const HomePage = () => {
   }, [currentFolderId, uploadFirst, uploadSignal]);
 
   useEffect(() => {
-    setSelectedItems([]);
-    setLastSelectedId(null);
-  }, [clearSelection, currentFolderId, refreshItems]);
+    clearSelection();
+  }, [clearSelection, currentFolderId]);
+
+  useEffect(() => {
+    const preventWindowDropNavigation = (event: globalThis.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener("dragover", preventWindowDropNavigation);
+    window.addEventListener("drop", preventWindowDropNavigation);
+
+    return () => {
+      window.removeEventListener("dragover", preventWindowDropNavigation);
+      window.removeEventListener("drop", preventWindowDropNavigation);
+    };
+  }, []);
 
   useEffect(() => {
     if (!toastMessage) {
@@ -146,12 +170,10 @@ const HomePage = () => {
     });
   };
 
-  const clearSelection = () => {
-    setSelectedItems([]);
-    setLastSelectedId(null);
-  };
-
   const handleSelect = (item: DriveItem, event: MouseEvent<HTMLDivElement>) => {
+    if (isUploading) {
+      return;
+    }
     setSelectedItems((prev) => {
       if (event.shiftKey && lastSelectedId) {
         const currentIndex = items.findIndex((entry) => entry.id === item.id);
@@ -188,41 +210,129 @@ const HomePage = () => {
     navigate(`/app/doc/${item.id}`);
   };
 
-  const refreshItems = async () => {
+  const refreshItems = useCallback(async () => {
     const [folderResponse, docResponse] = await Promise.all([
       listFolders(),
       listDocuments({ folderId: currentFolderId ?? "root" }),
     ]);
     setFolders(folderResponse.ok ? (folderResponse.folders ?? []) : []);
     setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
-  };
+  }, [currentFolderId]);
 
   const handleUploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) {
       return;
     }
-    await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
+    setIsUploading(true);
+    setDragMessage(`Uploading ${files.length} item${files.length === 1 ? "" : "s"}…`);
+    await uploadFiles(files, currentFolderId ?? undefined);
     setToastMessage("Uploaded");
-    const response = await listDocuments({ folderId: currentFolderId ?? "root" });
-    setDocuments(response.ok ? (response.docs ?? []) : []);
-  }, [currentFolderId]);
-
+    await refreshItems();
+    clearSelection();
+    setIsUploading(false);
+    setDragMessage(null);
+  }, [clearSelection, currentFolderId, refreshItems]);
 
   const handleUploadFolder = useCallback(async (files: File[]) => {
     if (files.length === 0) {
       return;
     }
 
-    const response = await uploadFolder(files, currentFolderId ?? undefined);
+    setIsUploading(true);
+    setDragMessage(`Uploading ${files.length} item${files.length === 1 ? "" : "s"}…`);
+
+    const response = await uploadFolder(
+      files,
+      files.map((file) => {
+        const folderFile = file as File & { webkitRelativePath?: string };
+        return folderFile.webkitRelativePath || file.name;
+      }),
+      currentFolderId ?? undefined
+    );
     if (!response.ok) {
       setToastMessage("Folder upload failed");
+      setIsUploading(false);
+      setDragMessage(null);
       return;
     }
 
     clearSelection();
     await refreshItems();
     setToastMessage("Folder uploaded");
+    setIsUploading(false);
+    setDragMessage(null);
   }, [clearSelection, currentFolderId, refreshItems]);
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragDepthRef.current = 0;
+    setIsDragActive(false);
+
+    if (isUploading) {
+      return;
+    }
+
+    const droppedEntries = await getDroppedEntries(event.dataTransfer.items);
+    if (droppedEntries && droppedEntries.length > 0) {
+      const files = droppedEntries.map((entry) => entry.file);
+      const paths = droppedEntries.map((entry) => entry.relativePath);
+      const hasFolderStructure = paths.some((path) => path.includes("/"));
+
+      setIsUploading(true);
+      setDragMessage(`Uploading ${files.length} item${files.length === 1 ? "" : "s"}…`);
+
+      if (hasFolderStructure) {
+        const response = await uploadFolder(files, paths, currentFolderId ?? undefined);
+        if (!response.ok) {
+          setToastMessage("Folder upload failed");
+          setIsUploading(false);
+          setDragMessage(null);
+          return;
+        }
+      } else {
+        await uploadFiles(files, currentFolderId ?? undefined);
+      }
+
+      await refreshItems();
+      clearSelection();
+      setToastMessage("Upload complete");
+      setIsUploading(false);
+      setDragMessage(null);
+      return;
+    }
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length === 0) {
+      return;
+    }
+
+    console.info("Entries API unavailable, falling back to flat file upload.");
+    await handleUploadFiles(files);
+  };
 
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
@@ -319,48 +429,76 @@ const HomePage = () => {
           />
         ) : (
           <div onClick={(event) => event.stopPropagation()}>
+            {dragMessage ? <p className="mb-3 text-sm text-slate-600">{dragMessage}</p> : null}
             {selectedItems.length > 0 ? (
               <SelectionBar
                 selectedCount={selectedItems.length}
                 renameDisabled={!canRename}
                 onClearSelection={clearSelection}
-                onMove={() => setMoveOpen(true)}
+                onMove={() => { if (!isUploading) setMoveOpen(true); }}
                 onRename={() => {
                   if (!selectedPrimary) {
+                    return;
+                  }
+                  if (isUploading) {
                     return;
                   }
                   setRenameValue(selectedPrimary.name);
                   setRenameOpen(true);
                 }}
-                onDelete={() => setDeleteOpen(true)}
+                onDelete={() => { if (!isUploading) setDeleteOpen(true); }}
               />
             ) : null}
-            <DriveBrowser
-              breadcrumbs={breadcrumbs}
-              items={items}
-              selectedIds={selectedItems}
-              loading={loading}
-              onNavigate={openFolder}
-              onSelect={handleSelect}
-              onOpen={handleOpen}
-              onClearSelection={clearSelection}
-              onRename={(item) => {
-                setSelectedItems([item.id]);
-                setLastSelectedId(item.id);
-                setRenameValue(item.name);
-                setRenameOpen(true);
+            <div
+              className="relative"
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={(event) => {
+                void handleDrop(event);
               }}
-              onMove={(item) => {
-                setSelectedItems([item.id]);
-                setLastSelectedId(item.id);
-                setMoveOpen(true);
-              }}
-              onDelete={(item) => {
-                setSelectedItems([item.id]);
-                setLastSelectedId(item.id);
-                setDeleteOpen(true);
-              }}
-            />
+            >
+              {isDragActive ? (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-white/70">
+                  <div className="text-sm font-medium text-gray-700">Drop files or folders to upload</div>
+                </div>
+              ) : null}
+              <DriveBrowser
+                breadcrumbs={breadcrumbs}
+                items={items}
+                selectedIds={selectedItems}
+                loading={loading}
+                onNavigate={openFolder}
+                onSelect={handleSelect}
+                onOpen={handleOpen}
+                onClearSelection={clearSelection}
+                onRename={(item) => {
+                  if (isUploading) {
+                    return;
+                  }
+                  setSelectedItems([item.id]);
+                  setLastSelectedId(item.id);
+                  setRenameValue(item.name);
+                  setRenameOpen(true);
+                }}
+                onMove={(item) => {
+                  if (isUploading) {
+                    return;
+                  }
+                  setSelectedItems([item.id]);
+                  setLastSelectedId(item.id);
+                  setMoveOpen(true);
+                }}
+                onDelete={(item) => {
+                  if (isUploading) {
+                    return;
+                  }
+                  setSelectedItems([item.id]);
+                  setLastSelectedId(item.id);
+                  setDeleteOpen(true);
+                }}
+              />
+            </div>
           </div>
         )}
       </div>

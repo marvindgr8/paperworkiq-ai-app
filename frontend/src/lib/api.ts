@@ -269,18 +269,15 @@ export const uploadDocument = async (file: File, folderId?: string) => {
 };
 
 
-export const uploadFolder = async (files: File[], parentFolderId?: string) => {
+export const uploadFiles = async (files: File[], parentFolderId?: string) => {
+  return Promise.all(files.map((file) => uploadDocument(file, parentFolderId)));
+};
+
+
+export const uploadFolder = async (files: File[], paths: string[], parentFolderId?: string) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
-  formData.append(
-    "paths",
-    JSON.stringify(
-      files.map((file) => {
-        const folderFile = file as File & { webkitRelativePath?: string };
-        return folderFile.webkitRelativePath || file.name;
-      })
-    )
-  );
+  formData.append("paths", JSON.stringify(paths));
   if (parentFolderId) {
     formData.append("parentFolderId", parentFolderId);
   }
