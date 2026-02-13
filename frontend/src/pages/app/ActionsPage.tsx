@@ -9,7 +9,7 @@ import AppHeader from "@/components/app/AppHeader";
 
 const ActionsPage = () => {
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const { docCount, isLoading, openUpload } = useAppGate();
+  const { docCount, isLoading } = useAppGate();
   const uploadFirst = !isLoading && docCount === 0;
   const navigate = useNavigate();
 
@@ -46,11 +46,6 @@ const ActionsPage = () => {
       <AppHeader
         title="Actions"
         subtitle="Documents that need your attention."
-        actions={
-          <Button size="sm" onClick={openUpload}>
-            Upload
-          </Button>
-        }
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
