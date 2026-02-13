@@ -72,6 +72,34 @@ describe("document uploads", () => {
     await cleanupUser(email);
   });
 
+
+  it("uploads a csv file", async () => {
+    const email = `upload-csv-${Date.now()}@example.com`;
+
+    const registerResponse = await request(app).post("/api/auth/register").send({
+      email,
+      password: "password123",
+      name: "Dana CSV Upload",
+    });
+
+    expect(registerResponse.status).toBe(201);
+
+    const token = registerResponse.body.token as string;
+
+    const uploadResponse = await request(app)
+      .post("/api/documents/upload")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("file", Buffer.from("a,b\n1,2"), {
+        filename: "data.csv",
+        contentType: "text/csv",
+      });
+
+    expect(uploadResponse.status).toBe(201);
+    expect(uploadResponse.body.doc.fileName).toBe("data.csv");
+
+    await cleanupUser(email);
+  });
+
   it("uploads a folder and recreates nested folders", async () => {
     const email = `upload-folder-${Date.now()}@example.com`;
 

@@ -188,6 +188,17 @@ export const processDocument = async (documentId: string) => {
     } else if (document.mimeType?.startsWith("image/")) {
       text = await extractTextFromImageWithOpenAI({ buffer, mimeType: document.mimeType });
       pages = text ? [text] : [];
+    } else if (document.mimeType === "text/csv" || document.mimeType === "application/csv") {
+      text = buffer.toString("utf-8");
+      pages = text ? [text] : [];
+    } else if (
+      document.mimeType === "application/msword"
+      || document.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      || document.mimeType === "application/vnd.ms-excel"
+      || document.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) {
+      text = "";
+      pages = [];
     } else {
       throw new Error("Unsupported file type for OCR.");
     }

@@ -21,6 +21,19 @@ import {
 
 export const docsRouter = Router();
 
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "text/csv",
+  "application/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+
+const isUploadMimeTypeAllowed = (mimeType: string) =>
+  mimeType.startsWith("image/") || ALLOWED_DOCUMENT_MIME_TYPES.has(mimeType);
+
 const createDocSchema = z.object({
   title: z.string().optional(),
   fileName: z.string().optional(),
@@ -190,10 +203,7 @@ docsRouter.post(
       return res.status(400).json({ ok: false, error: "File is required" });
     }
 
-    const isImage = file.mimetype.startsWith("image/");
-    const isPdf = file.mimetype === "application/pdf";
-
-    if (!isImage && !isPdf) {
+    if (!isUploadMimeTypeAllowed(file.mimetype)) {
       await deleteStoredFile(file.filename);
       return res.status(400).json({ ok: false, error: "Unsupported file type" });
     }
@@ -311,9 +321,7 @@ docsRouter.post(
           currentParentId = folderResult.id;
         }
 
-        const isImage = file.mimetype.startsWith("image/");
-        const isPdf = file.mimetype === "application/pdf";
-        if (!isImage && !isPdf) {
+        if (!isUploadMimeTypeAllowed(file.mimetype)) {
           continue;
         }
 
