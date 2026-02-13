@@ -90,7 +90,7 @@ const UploadModal = ({ open, onClose, onUploaded }: UploadModalProps) => {
               className="hidden"
               type="file"
               multiple
-              accept="application/pdf,image/*"
+              accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               onChange={(event) => {
                 const nextFiles = Array.from(event.target.files ?? []);
                 setFiles(nextFiles);

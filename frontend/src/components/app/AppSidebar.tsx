@@ -65,7 +65,7 @@ const AppSidebar = () => {
           ref={fileInputRef}
           className="hidden"
           type="file"
-          accept="application/pdf,image/*"
+          accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
           multiple
           onChange={async (event) => {
             const files = Array.from(event.target.files ?? []);
