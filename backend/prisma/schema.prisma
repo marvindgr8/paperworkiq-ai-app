@@ -102,9 +102,11 @@ model Document {
   userId        String
   workspaceId   String
   categoryId    String?
+  folderId      String?
   user          User              @relation(fields: [userId], references: [id])
   workspace     Workspace         @relation(fields: [workspaceId], references: [id])
   category      Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  folder        Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
   title         String?
   type          String?
   fileName      String?
@@ -135,7 +137,23 @@ model Document {
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([folderId])
   @@index([fileHash])
+}
+
+model Folder {
+  id        String    @id @default(cuid())
+  name      String
+  ownerId   String
+  parentId  String?
+  parent    Folder?   @relation("FolderParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Folder[]  @relation("FolderParent")
+  documents Document[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@index([parentId])
 }
 
 model ExtractedField {

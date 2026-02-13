@@ -47,6 +47,15 @@ export const me = async (token: string) => {
 
 export type ChatScope = "WORKSPACE" | "DOCUMENT";
 
+export interface FolderDTO {
+  id: string;
+  name: string;
+  ownerId: string;
+  parentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChatSessionDTO {
   id: string;
   createdAt: string;
@@ -76,6 +85,7 @@ export interface CategoryDTO {
 export const listChatSessions = async (options?: {
   scope?: ChatScope;
   documentId?: string;
+  folderId?: string;
 }) => {
   const url = new URL(`${baseUrl}/api/chat/sessions`);
   if (options?.scope) {
@@ -83,6 +93,9 @@ export const listChatSessions = async (options?: {
   }
   if (options?.documentId) {
     url.searchParams.set("documentId", options.documentId);
+  }
+  if (options?.folderId) {
+    url.searchParams.set("folderId", options.folderId);
   }
   const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
@@ -93,13 +106,17 @@ export const listChatSessions = async (options?: {
 export const createChatSession = async (options?: {
   scope?: ChatScope;
   documentId?: string;
+  folderId?: string;
 }) => {
-  const payload: { scope?: ChatScope; documentId?: string } = {};
+  const payload: { scope?: ChatScope; documentId?: string; folderId?: string } = {};
   if (options?.scope) {
     payload.scope = options.scope;
   }
   if (options?.documentId) {
     payload.documentId = options.documentId;
+  }
+  if (options?.folderId) {
+    payload.folderId = options.folderId;
   }
   const response = await fetch(`${baseUrl}/api/chat/sessions`, {
     method: "POST",
@@ -111,7 +128,7 @@ export const createChatSession = async (options?: {
 
 export const listChatMessages = async (
   sessionId: string,
-  options?: { scope?: ChatScope; documentId?: string }
+  options?: { scope?: ChatScope; documentId?: string; folderId?: string }
 ) => {
   const url = new URL(`${baseUrl}/api/chat/sessions/${sessionId}/messages`);
   if (options?.scope) {
@@ -119,6 +136,9 @@ export const listChatMessages = async (
   }
   if (options?.documentId) {
     url.searchParams.set("documentId", options.documentId);
+  }
+  if (options?.folderId) {
+    url.searchParams.set("folderId", options.folderId);
   }
   const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
@@ -129,14 +149,17 @@ export const listChatMessages = async (
 export const sendChatMessage = async (
   sessionId: string,
   content: string,
-  options?: { scope?: ChatScope; documentId?: string }
+  options?: { scope?: ChatScope; documentId?: string; folderId?: string }
 ) => {
-  const payload: { content: string; scope?: ChatScope; documentId?: string } = { content };
+  const payload: { content: string; scope?: ChatScope; documentId?: string; folderId?: string } = { content };
   if (options?.scope) {
     payload.scope = options.scope;
   }
   if (options?.documentId) {
     payload.documentId = options.documentId;
+  }
+  if (options?.folderId) {
+    payload.folderId = options.folderId;
   }
   const response = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages`, {
     method: "POST",
@@ -155,6 +178,7 @@ export interface DocumentDTO {
   status: string;
   aiStatus?: string | null;
   category?: CategoryDTO | null;
+  folderId?: string | null;
   categoryLabel?: string | null;
   fileHash?: string | null;
   summary?: string | null;
@@ -183,15 +207,19 @@ export interface DocumentSearchResult {
   fileName?: string | null;
   status: string;
   category?: CategoryDTO | null;
+  folderId?: string | null;
   categoryLabel?: string | null;
   createdAt: string;
   previewThumbUrl?: string | null;
 }
 
-export const listDocuments = async (options?: { categoryId?: string }) => {
+export const listDocuments = async (options?: { categoryId?: string; folderId?: string }) => {
   const url = new URL(`${baseUrl}/api/docs`);
   if (options?.categoryId) {
     url.searchParams.set("categoryId", options.categoryId);
+  }
+  if (options?.folderId) {
+    url.searchParams.set("folderId", options.folderId);
   }
   const response = await fetch(url.toString(), {
     headers: { ...authHeaders() },
@@ -225,9 +253,12 @@ export const searchDocuments = async (options: { query: string; limit?: number }
   return response.json();
 };
 
-export const uploadDocument = async (file: File) => {
+export const uploadDocument = async (file: File, folderId?: string) => {
   const formData = new FormData();
   formData.append("file", file);
+  if (folderId) {
+    formData.append("folderId", folderId);
+  }
   const response = await fetch(`${baseUrl}/api/documents/upload`, {
     method: "POST",
     headers: { ...authHeaders() },
@@ -286,4 +317,51 @@ export const downloadDocumentFile = async (id: string, fileName?: string) => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+};
+
+
+export const listFolders = async () => {
+  const response = await fetch(`${baseUrl}/api/folders`, { headers: { ...authHeaders() } });
+  return response.json();
+};
+
+export const createFolder = async (payload: { name: string; parentId?: string | null }) => {
+  const response = await fetch(`${baseUrl}/api/folders/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
+
+export const updateFolder = async (id: string, payload: { name: string }) => {
+  const response = await fetch(`${baseUrl}/api/folders/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
+
+export const moveFolder = async (id: string, payload: { parentId?: string | null }) => {
+  const response = await fetch(`${baseUrl}/api/folders/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
+
+export const deleteFolder = async (id: string) => {
+  const response = await fetch(`${baseUrl}/api/folders/${id}`, { method: "DELETE", headers: { ...authHeaders() } });
+  return response.json();
+};
+
+export const moveDocument = async (id: string, payload: { folderId?: string | null }) => {
+  const response = await fetch(`${baseUrl}/api/docs/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
 };

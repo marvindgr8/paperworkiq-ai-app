@@ -9,6 +9,11 @@ let mockDocCount = 0;
 const listDocuments = vi.fn();
 const listCategories = vi.fn();
 const getDocument = vi.fn();
+const listFolders = vi.fn();
+const createFolder = vi.fn();
+const deleteFolder = vi.fn();
+const moveFolder = vi.fn();
+const moveDocument = vi.fn();
 
 vi.mock("@/hooks/useDocumentCount", () => ({
   useDocumentCount: () => ({
@@ -37,6 +42,11 @@ vi.mock("@/lib/api", async () => {
     listDocuments,
     listCategories,
     getDocument,
+    listFolders,
+    createFolder,
+    deleteFolder,
+    moveFolder,
+    moveDocument,
     fetchDocumentPreviewUrl: vi.fn().mockResolvedValue("blob:preview"),
     sendChatMessage: vi.fn(),
   };
@@ -54,7 +64,17 @@ describe("app routes", () => {
     listDocuments.mockReset();
     listCategories.mockReset();
     getDocument.mockReset();
+    listFolders.mockReset();
+    createFolder.mockReset();
+    deleteFolder.mockReset();
+    moveFolder.mockReset();
+    moveDocument.mockReset();
     listCategories.mockResolvedValue({ ok: true, categories: [] });
+    listFolders.mockResolvedValue({ ok: true, folders: [] });
+    createFolder.mockResolvedValue({ ok: true, folder: { id: "f-new", name: "New folder", ownerId: "u-1", parentId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+    deleteFolder.mockResolvedValue({ ok: true });
+    moveFolder.mockResolvedValue({ ok: true });
+    moveDocument.mockResolvedValue({ ok: true, doc: { id: "doc-1", folderId: null } });
     useChatSessions.mockReset();
     useChatSession.mockReset();
     useChatSessions.mockReturnValue({ sessions: [], startNewSession: vi.fn() });
@@ -274,5 +294,33 @@ describe("app routes", () => {
     expect(screen.queryByText("Overview")).not.toBeInTheDocument();
     expect(screen.queryByText("Categories")).not.toBeInTheDocument();
     expect(screen.queryByText("All documents")).not.toBeInTheDocument();
+  });
+
+  it("supports folder create and navigation in file explorer", async () => {
+    mockDocCount = 1;
+    const doc: DocumentDTO = {
+      id: "doc-folder-1",
+      title: "Invoice",
+      fileName: "invoice.pdf",
+      mimeType: "application/pdf",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+      folderId: "f-1",
+    };
+    listDocuments.mockResolvedValue({ ok: true, docs: [doc] });
+    listFolders.mockResolvedValue({
+      ok: true,
+      folders: [
+        { id: "f-1", name: "Finance", ownerId: "u-1", parentId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ],
+    });
+
+    vi.spyOn(window, "prompt").mockReturnValueOnce("Receipts");
+
+    renderApp("/app/home");
+
+    expect(await screen.findByText("📁 Finance")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "New Folder" }));
+    expect(createFolder).toHaveBeenCalled();
   });
 });
