@@ -39,16 +39,6 @@ const AppShellLayout = () => {
     [count, isLoading, error, refetch, uploadSignal]
   );
 
-  const handleNewChat = () => {
-    const match = location.pathname.match(/^\/app\/doc\/([^/]+)/);
-    if (match) {
-      navigate(`/app/doc/${match[1]}?new=1`);
-    } else {
-      navigate("/app/chat?new=1");
-    }
-    setSidebarOpen(false);
-  };
-
   const handleUploaded = async () => {
     await refetch();
     setUploadSignal((prev) => prev + 1);
@@ -70,7 +60,7 @@ const AppShellLayout = () => {
             <div className="min-h-screen bg-gradient-to-br from-white via-white to-zinc-50">
               <div className="flex h-screen w-full overflow-hidden">
                 <div className="hidden h-full lg:flex">
-                  <AppSidebar onNewChat={handleNewChat} />
+                  <AppSidebar />
                 </div>
 
                 <div className="flex flex-1 flex-col">
@@ -121,7 +111,7 @@ const AppShellLayout = () => {
                     sidebarOpen ? "translate-x-0" : "-translate-x-full"
                   )}
                 >
-                  <AppSidebar onNewChat={handleNewChat} />
+                  <AppSidebar />
                 </div>
               </div>
             </div>
