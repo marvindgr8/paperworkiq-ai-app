@@ -8,6 +8,7 @@ import { AppGateContext, type SidebarActions } from "@/hooks/useAppGate";
 import { useDocumentCount } from "@/hooks/useDocumentCount";
 import UploadModal from "@/components/uploads/UploadModal";
 import type { DocumentDTO } from "@/lib/api";
+import { uploadFiles, uploadFolder } from "@/lib/api";
 import { EvidenceProvider } from "@/hooks/useEvidenceContext";
 import { SidebarSearchProvider } from "@/hooks/useSidebarSearch";
 import clsx from "clsx";
@@ -32,15 +33,31 @@ const AppShellLayout = () => {
       await sidebarActions.uploadFiles(files);
       return;
     }
-    setUploadOpen(true);
-  }, [sidebarActions]);
-
-  const uploadFolderFromSidebar = useCallback(async (files: File[]) => {
-    if (!sidebarActions?.uploadFolder) {
+    if (files.length === 0) {
       return;
     }
-    await sidebarActions.uploadFolder(files);
-  }, [sidebarActions]);
+    await uploadFiles(files);
+    await refetch();
+    setUploadSignal((prev) => prev + 1);
+  }, [refetch, sidebarActions]);
+
+  const uploadFolderFromSidebar = useCallback(async (files: File[]) => {
+    if (sidebarActions?.uploadFolder) {
+      await sidebarActions.uploadFolder(files);
+      return;
+    }
+    if (files.length === 0) {
+      return;
+    }
+
+    const paths = files.map((file) => {
+      const folderFile = file as File & { webkitRelativePath?: string };
+      return folderFile.webkitRelativePath || file.name;
+    });
+    await uploadFolder(files, paths);
+    await refetch();
+    setUploadSignal((prev) => prev + 1);
+  }, [refetch, sidebarActions]);
 
   const gateContextValue = useMemo(
     () => ({
@@ -49,14 +66,20 @@ const AppShellLayout = () => {
       error,
       refetchDocumentCount: refetch,
       openUpload: () => setUploadOpen(true),
-      openNewFolder: () => sidebarActions?.openNewFolderModal(),
+      openNewFolder: () => {
+        if (sidebarActions?.openNewFolderModal) {
+          sidebarActions.openNewFolderModal();
+          return;
+        }
+        navigate("/app/home?create=1");
+      },
       uploadFilesFromSidebar,
       uploadFolderFromSidebar,
       registerSidebarActions: (actions: SidebarActions | null) => setSidebarActions(actions),
       notifyUploadComplete: () => setUploadSignal((prev) => prev + 1),
       uploadSignal,
     }),
-    [count, isLoading, error, refetch, sidebarActions, uploadFilesFromSidebar, uploadFolderFromSidebar, uploadSignal]
+    [count, isLoading, error, refetch, sidebarActions, uploadFilesFromSidebar, uploadFolderFromSidebar, uploadSignal, navigate]
   );
 
   const handleUploaded = async () => {
