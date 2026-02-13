@@ -274,6 +274,16 @@ export const getDocument = async (id: string) => {
   return response.json();
 };
 
+
+
+export const updateDocument = async (id: string, payload: { name: string }) => {
+  const response = await fetch(`${baseUrl}/api/docs/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
 export const deleteDocument = async (id: string) => {
   const response = await fetch(`${baseUrl}/api/documents/${id}`, {
     method: "DELETE",

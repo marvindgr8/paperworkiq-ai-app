@@ -40,6 +40,10 @@ const moveDocumentSchema = z.object({
   folderId: z.string().optional().nullable(),
 });
 
+const renameDocumentSchema = z.object({
+  name: z.string().min(1),
+});
+
 const ensureFolderAccess = async (folderId: string, userId: string) => {
   const folder = await prisma.folder.findUnique({ where: { id: folderId } });
   if (!folder || folder.ownerId !== userId) {
@@ -495,6 +499,36 @@ docsRouter.post(
     res.json({ ok: true, doc: updated });
   })
 );
+
+docsRouter.patch(
+  "/:id",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const data = renameDocumentSchema.parse(req.body ?? {});
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+    if (!doc) {
+      return res.status(404).json({ ok: false, error: "Document not found" });
+    }
+
+    const canAccess = await ensureWorkspaceAccess(userId, doc.workspaceId);
+    if (!canAccess) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: doc.id },
+      data: { title: data.name, fileName: data.name },
+      select: { id: true, title: true, fileName: true },
+    });
+
+    res.json({ ok: true, doc: updated });
+  })
+);
+
 docsRouter.delete(
   "/:id",
   asyncHandler(async (req: AuthenticatedRequest, res) => {

@@ -1,431 +1,289 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Search, X } from "lucide-react";
-import {
-  createFolder,
-  deleteDocument,
-  deleteFolder,
-  downloadDocumentFile,
-  getDocument,
-  listCategories,
-  listDocuments,
-  listFolders,
-  moveDocument,
-  moveFolder,
-  reprocessDocument,
-  searchDocuments,
-  updateFolder,
-  type CategoryDTO,
-  type DocumentDTO,
-  type FolderDTO,
-} from "@/lib/api";
-import UploadPanel from "@/components/documents/UploadPanel";
-import FileExplorer from "@/components/documents/FileExplorer";
-import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
-import { useAppGate } from "@/hooks/useAppGate";
-import { useDocumentSelection } from "@/hooks/useDocumentSelection";
-import DocumentPreview from "@/components/documents/DocumentPreview";
-import DocumentActionsMenu from "@/components/documents/DocumentActionsMenu";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
+import DriveBrowser, { type DriveItem } from "@/components/documents/DriveBrowser";
+import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
-import { useSidebarSearch } from "@/hooks/useSidebarSearch";
+import {
+  createFolder,
+  deleteDocument,
+  deleteFolder,
+  listDocuments,
+  listFolders,
+  moveDocument,
+  moveFolder,
+  updateFolder,
+  updateDocument,
+  uploadDocument,
+  type DocumentDTO,
+  type FolderDTO,
+} from "@/lib/api";
+import { useAppGate } from "@/hooks/useAppGate";
 
 const HomePage = () => {
-  const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const [searchResults, setSearchResults] = useState<DocumentDTO[]>([]);
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [categories, setCategories] = useState<CategoryDTO[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [isFetching, setIsFetching] = useState(false);
-  const [folders, setFolders] = useState<FolderDTO[]>([]);
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<FolderDTO | null>(null);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<DocumentDTO | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<DocumentDTO | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const { docCount, isLoading, uploadSignal, openUpload } = useAppGate();
-  const { setSelectedDocument } = useDocumentSelection();
-  const { query, setQuery } = useSidebarSearch();
   const [searchParams, setSearchParams] = useSearchParams();
+  const currentFolderId = searchParams.get("folderId");
   const navigate = useNavigate();
-  const location = useLocation();
-  const listRef = useRef<HTMLDivElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  const [folders, setFolders] = useState<FolderDTO[]>([]);
+  const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [renameValue, setRenameValue] = useState("");
+  const [moveDestination, setMoveDestination] = useState<string>("root");
+  const { docCount, isLoading, uploadSignal } = useAppGate();
+
   const uploadFirst = !isLoading && docCount === 0;
 
   useEffect(() => {
-    const categoryId = searchParams.get("categoryId");
-    setActiveCategoryId(categoryId);
-  }, [searchParams]);
-
-  useEffect(() => {
-    const urlQuery = searchParams.get("q") ?? "";
-    setQuery(urlQuery);
-  }, [searchParams, setQuery]);
-
-  useEffect(() => {
-    setSearchParams(
-      (params) => {
-        if (query) {
-          params.set("q", query);
-        } else {
-          params.delete("q");
-        }
-        return params;
-      },
-      { replace: true }
-    );
-  }, [query, setSearchParams]);
-
-  useEffect(() => {
-    const fetchDocs = async () => {
-      setIsFetching(true);
+    const run = async () => {
+      setLoading(true);
       try {
-        const response = await listDocuments({
-          categoryId: activeCategoryId ?? undefined,
-          folderId: currentFolderId ?? "root",
-        });
-        if (response.ok) {
-          setDocuments(response.docs ?? []);
-        } else {
-          setDocuments([]);
-        }
-      } catch (error) {
-        setDocuments([]);
+        const [folderResponse, docResponse] = await Promise.all([
+          listFolders(),
+          listDocuments({ folderId: currentFolderId ?? "root" }),
+        ]);
+        setFolders(folderResponse.ok ? (folderResponse.folders ?? []) : []);
+        setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
       } finally {
-        setIsFetching(false);
+        setLoading(false);
       }
     };
 
-    if (isLoading) {
-      return;
-    }
-    if (docCount === 0) {
+    if (uploadFirst) {
+      setFolders([]);
       setDocuments([]);
       return;
     }
-    void fetchDocs();
-  }, [activeCategoryId, currentFolderId, docCount, isLoading, uploadSignal]);
+
+    void run();
+  }, [currentFolderId, uploadFirst, uploadSignal]);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await listCategories();
-        if (response.ok) {
-          setCategories(response.categories ?? []);
-        } else {
-          setCategories([]);
-        }
-      } catch (error) {
-        setCategories([]);
-      }
-    };
-
-    if (isLoading) {
-      return;
-    }
-    if (docCount === 0) {
-      setCategories([]);
-      return;
-    }
-    void fetchCategories();
-  }, [docCount, isLoading, uploadSignal]);
-
-  useEffect(() => {
-    const fetchFolders = async () => {
-      try {
-        const response = await listFolders();
-        setFolders(response.ok ? (response.folders ?? []) : []);
-      } catch (error) {
-        setFolders([]);
-      }
-    };
-
-    if (isLoading) {
-      return;
-    }
-    if (docCount === 0) {
-      setFolders([]);
-      return;
-    }
-    void fetchFolders();
-  }, [docCount, isLoading, uploadSignal]);
-
-  useEffect(() => {
-    if (uploadFirst) {
-      setSelectedDocument(null);
-      setSelectedDocumentId(null);
-      setPreviewDoc(null);
-    }
-  }, [setSelectedDocument, uploadFirst]);
-
-  useEffect(() => {
-    const state = location.state as { toast?: string } | null;
-    const focusResults = state?.focusResults;
-    if (state?.toast) {
-      setToastMessage(state.toast);
-    }
-    if (focusResults) {
-      window.requestAnimationFrame(() => {
-        listRef.current?.focus();
-      });
-    }
-    if (state?.toast || focusResults) {
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location, navigate]);
+    setSelectedIds(new Set());
+  }, [currentFolderId]);
 
   useEffect(() => {
     if (!toastMessage) {
       return;
     }
-    const timer = window.setTimeout(() => setToastMessage(null), 3000);
+    const timer = window.setTimeout(() => setToastMessage(null), 2500);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
-      setSearchResults([]);
-      setIsSearchLoading(false);
-      return;
-    }
+  const visibleFolders = useMemo(
+    () => folders.filter((folder) => (folder.parentId ?? null) === (currentFolderId ?? null)),
+    [currentFolderId, folders]
+  );
 
-    let isActive = true;
-    setIsSearchLoading(true);
-    const timer = window.setTimeout(async () => {
-      try {
-        const response = await searchDocuments({ query: trimmed, limit: 50 });
-        if (!isActive) {
-          return;
-        }
-        setSearchResults(response.ok ? (response.docs ?? []) : []);
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-        setSearchResults([]);
-      } finally {
-        if (isActive) {
-          setIsSearchLoading(false);
-        }
+  const items = useMemo<DriveItem[]>(() => {
+    const folderItems = visibleFolders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      kind: "folder" as const,
+      updatedAt: folder.updatedAt,
+    }));
+
+    const fileItems = documents.map((doc) => ({
+      id: doc.id,
+      name: doc.title ?? doc.fileName ?? "Untitled",
+      kind: "file" as const,
+      mimeType: doc.mimeType,
+      updatedAt: doc.createdAt,
+    }));
+
+    return [...folderItems, ...fileItems].sort((a, b) => {
+      if (a.kind !== b.kind) {
+        return a.kind === "folder" ? -1 : 1;
       }
-    }, 250);
-
-    return () => {
-      isActive = false;
-      window.clearTimeout(timer);
-    };
-  }, [query]);
-
-  const filteredDocs = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) {
-      return documents;
-    }
-    return documents.filter((doc) => {
-      const title = (doc.title ?? doc.fileName ?? "Untitled").toLowerCase();
-      return title.includes(normalized);
+      return a.name.localeCompare(b.name);
     });
-  }, [documents, query]);
+  }, [documents, visibleFolders]);
 
-  const displayedDocs = useMemo(() => {
-    if (query.trim().length >= 2) {
-      return searchResults;
-    }
-    return filteredDocs;
-  }, [filteredDocs, query, searchResults]);
+  const folderMap = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
 
-  const handleFilterChange = (categoryId: string | null) => {
-    setActiveCategoryId(categoryId);
-    if (!categoryId) {
-      setSearchParams((params) => {
-        params.delete("categoryId");
-        return params;
-      });
-      return;
+  const breadcrumbs = useMemo(() => {
+    const crumbs: { id: string | null; name: string }[] = [{ id: null, name: "Root" }];
+    let cursor = currentFolderId ? folderMap.get(currentFolderId) : undefined;
+    const branch: { id: string; name: string }[] = [];
+    while (cursor) {
+      branch.unshift({ id: cursor.id, name: cursor.name });
+      cursor = cursor.parentId ? folderMap.get(cursor.parentId) : undefined;
     }
+    return [...crumbs, ...branch];
+  }, [currentFolderId, folderMap]);
+
+  const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds]);
+  const selectedPrimary = selectedItems[0];
+  const canRename = selectedItems.length === 1;
+  const canMove = selectedItems.length >= 1;
+  const canDelete = selectedItems.length >= 1;
+
+  const openFolder = (folderId: string | null) => {
     setSearchParams((params) => {
-      params.set("categoryId", categoryId);
+      if (folderId) {
+        params.set("folderId", folderId);
+      } else {
+        params.delete("folderId");
+      }
       return params;
     });
   };
 
-  useEffect(() => {
-    if (selectedDocumentId && !documents.some((doc) => doc.id === selectedDocumentId)) {
-      setSelectedDocumentId(null);
-      setSelectedDocument(null);
-      setPreviewDoc(null);
-    }
-  }, [documents, selectedDocumentId, setSelectedDocument]);
-
-  useEffect(() => {
-    const fetchPreview = async () => {
-      if (!selectedDocumentId) {
-        setPreviewDoc(null);
-        return;
-      }
-      setIsPreviewLoading(true);
-      try {
-        const response = await getDocument(selectedDocumentId);
-        if (response.ok) {
-          setPreviewDoc(response.doc ?? null);
+  const handleSelect = (item: DriveItem, event: MouseEvent<HTMLButtonElement>) => {
+    setSelectedIds((prev) => {
+      if (event.metaKey || event.ctrlKey) {
+        const next = new Set(prev);
+        if (next.has(item.id)) {
+          next.delete(item.id);
         } else {
-          setPreviewDoc(null);
+          next.add(item.id);
         }
-      } catch (error) {
-        setPreviewDoc(null);
-      } finally {
-        setIsPreviewLoading(false);
+        return next;
       }
-    };
+      return new Set([item.id]);
+    });
+  };
 
-    void fetchPreview();
-  }, [selectedDocumentId]);
-
-  const handleSelectDocument = (doc: DocumentDTO) => {
-    setSelectedDocumentId(doc.id);
-    setSelectedFolder(null);
-    setSelectedDocument(doc);
+  const handleOpen = (item: DriveItem) => {
+    if (item.kind === "folder") {
+      openFolder(item.id);
+      return;
+    }
+    navigate(`/app/doc/${item.id}`);
   };
 
   const handleCreateFolder = async () => {
-    const trimmedName = newFolderName.trim();
-    if (!trimmedName) {
-      return;
-    }
-    const response = await createFolder({ name: trimmedName, parentId: currentFolderId });
-    if (response.ok) {
-      setFolders((prev) => [...prev, response.folder]);
-      setNewFolderName("");
-      setIsCreateFolderModalOpen(false);
-    }
-  };
-
-  const handleRenameFolder = async () => {
-    if (!selectedFolder) {
-      return;
-    }
-    const name = window.prompt("Rename folder", selectedFolder.name);
+    const name = newFolderName.trim();
     if (!name) {
       return;
     }
-    const response = await updateFolder(selectedFolder.id, { name });
+    const response = await createFolder({ name, parentId: currentFolderId });
     if (response.ok) {
-      setFolders((prev) =>
-        prev.map((folder) => (folder.id === selectedFolder.id ? response.folder : folder))
-      );
-      setSelectedFolder(response.folder);
+      setCreateOpen(false);
+      setNewFolderName("");
+      setFolders((prev) => [...prev, response.folder]);
+      setToastMessage("Folder created");
     }
   };
 
-  const handleDeleteFolder = async () => {
-    if (!selectedFolder) {
+  const handleRename = async () => {
+    if (!selectedPrimary) {
       return;
     }
-    const response = await deleteFolder(selectedFolder.id);
-    if (response.ok) {
-      setFolders((prev) => prev.filter((folder) => folder.id !== selectedFolder.id));
-      if (currentFolderId === selectedFolder.id) {
-        setCurrentFolderId(null);
-      }
-      setSelectedFolder(null);
-    }
-  };
-
-  const handleMoveSelection = async () => {
-    const destination = window.prompt("Move to folder id (blank for root)") ?? "";
-    const parentId = destination || null;
-
-    if (selectedFolder) {
-      const response = await moveFolder(selectedFolder.id, { parentId });
+    if (selectedPrimary.kind === "folder") {
+      const response = await updateFolder(selectedPrimary.id, { name: renameValue.trim() });
       if (response.ok) {
-        setFolders((prev) =>
-          prev.map((folder) => (folder.id === selectedFolder.id ? response.folder : folder))
-        );
+        setFolders((prev) => prev.map((folder) => (folder.id === selectedPrimary.id ? response.folder : folder)));
       }
-      return;
-    }
-
-    if (selectedDocumentId) {
-      const response = await moveDocument(selectedDocumentId, { folderId: parentId });
+    } else {
+      const response = await updateDocument(selectedPrimary.id, { name: renameValue.trim() });
       if (response.ok) {
-        setDocuments((prev) =>
-          prev.map((doc) =>
-            doc.id === selectedDocumentId ? { ...doc, folderId: response.doc.folderId } : doc
-          )
-        );
+        setDocuments((prev) => prev.map((doc) => (doc.id === selectedPrimary.id ? { ...doc, title: response.doc.title, fileName: response.doc.fileName } : doc)));
       }
     }
+    setRenameOpen(false);
+    setRenameValue("");
+    setToastMessage("Renamed");
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) {
-      return;
-    }
-    try {
-      const response = await deleteDocument(deleteTarget.id);
-      if (response.ok) {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== deleteTarget.id));
-        if (selectedDocumentId === deleteTarget.id) {
-          setSelectedDocumentId(null);
-          setSelectedDocument(null);
-          setPreviewDoc(null);
-        }
+    const targets = [...selectedItems];
+    for (const target of targets) {
+      if (target.kind === "folder") {
+        await deleteFolder(target.id);
+      } else {
+        await deleteDocument(target.id);
       }
-    } finally {
-      setDeleteTarget(null);
     }
+    setDeleteOpen(false);
+    setSelectedIds(new Set());
+    setFolders((prev) => prev.filter((folder) => !selectedIds.has(folder.id)));
+    setDocuments((prev) => prev.filter((doc) => !selectedIds.has(doc.id)));
+    setToastMessage("Deleted");
+  };
+
+  const handleMove = async () => {
+    const destinationId = moveDestination === "root" ? null : moveDestination;
+    for (const target of selectedItems) {
+      if (target.kind === "folder") {
+        await moveFolder(target.id, { parentId: destinationId });
+      } else {
+        await moveDocument(target.id, { folderId: destinationId });
+      }
+    }
+    setMoveOpen(false);
+    setSelectedIds(new Set());
+    setToastMessage("Moved");
+    const [folderResponse, docResponse] = await Promise.all([
+      listFolders(),
+      listDocuments({ folderId: currentFolderId ?? "root" }),
+    ]);
+    setFolders(folderResponse.ok ? (folderResponse.folders ?? []) : []);
+    setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
   };
 
   return (
     <div className="flex h-full flex-col">
       <AppHeader
         title="Home"
-        subtitle="Browse folders and files, then launch AI chat in context."
+        subtitle="Browse folders and files, then open a document workspace."
         actions={
           <div className="flex flex-wrap gap-2">
+            <input
+              ref={uploadInputRef}
+              className="hidden"
+              type="file"
+              accept="application/pdf,image/*"
+              multiple
+              onChange={async (event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length === 0) {
+                  return;
+                }
+                await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
+                event.target.value = "";
+                setToastMessage("Uploaded");
+                const response = await listDocuments({ folderId: currentFolderId ?? "root" });
+                setDocuments(response.ok ? (response.docs ?? []) : []);
+              }}
+            />
+            <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+              New Folder
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => uploadInputRef.current?.click()}>
+              Upload
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setMoveOpen(true)} disabled={!canMove}>
+              Move
+            </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => {
-                setIsCreateFolderModalOpen(true);
-              }}
-            >
-              New Folder
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleRenameFolder} disabled={!selectedFolder}>
-              Rename
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleDeleteFolder} disabled={!selectedFolder}>
-              Delete
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleMoveSelection}>
-              Move
-            </Button>
-            <Button size="sm" onClick={openUpload}>
-              Upload
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (selectedDocumentId) {
-                  navigate(`/app/doc/${selectedDocumentId}`);
+                if (!selectedPrimary) {
                   return;
                 }
-                if (selectedFolder) {
-                  navigate(`/app/chat?folderId=${selectedFolder.id}`);
-                }
+                setRenameValue(selectedPrimary.name);
+                setRenameOpen(true);
               }}
-              disabled={!selectedFolder && !selectedDocumentId}
+              disabled={!canRename}
             >
-              Chat
+              Rename
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setDeleteOpen(true)} disabled={!canDelete}>
+              Delete
             </Button>
           </div>
         }
@@ -433,253 +291,105 @@ const HomePage = () => {
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {uploadFirst ? (
-          <div className="space-y-6">
-            <UploadPanel />
-            <UploadFirstEmptyState
-              title="Upload your first document to get started."
-              description="Add a document to unlock summaries, categories, and grounded answers."
-            />
-          </div>
+          <UploadFirstEmptyState
+            title="Upload your first document to get started."
+            description="Add a document to unlock summaries, categories, and grounded answers."
+          />
         ) : (
-          <div className="flex flex-col gap-6 lg:flex-row">
-            <div
-              className={`flex w-full flex-col gap-6 lg:w-2/5 ${
-                selectedDocumentId ? "hidden lg:flex" : "flex"
-              }`}
-            >
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-slate-900">Recent documents</h2>
-                    <p className="text-xs text-slate-500">
-                      Select any document to preview and open the full view.
-                    </p>
-                  </div>
-                  <div className="flex w-full max-w-md items-center gap-2 rounded-2xl border border-zinc-200/70 bg-white px-3 py-2 text-sm text-slate-500">
-                    <Search className="h-4 w-4" />
-                    <input
-                      className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                      placeholder="Search documents"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          listRef.current?.focus();
-                        }
-                        if (event.key === "Escape") {
-                          setQuery("");
-                        }
-                      }}
-                    />
-                    {query ? (
-                      <button
-                        type="button"
-                        onClick={() => setQuery("")}
-                        className="rounded-full p-1 text-slate-400 transition hover:bg-zinc-100 hover:text-slate-600"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {categories.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className={
-                        !activeCategoryId
-                          ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                          : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
-                      }
-                      onClick={() => handleFilterChange(null)}
-                      type="button"
-                    >
-                      All
-                    </button>
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        className={
-                          activeCategoryId === category.id
-                            ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                            : "rounded-full border border-zinc-200/70 bg-white px-3 py-1 text-xs text-slate-500"
-                        }
-                        onClick={() => handleFilterChange(category.id)}
-                        type="button"
-                      >
-                        {category.name}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div ref={listRef} tabIndex={-1} aria-label="Document results list">
-                {displayedDocs.length === 0 ? (
-                  <div className="rounded-[28px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center text-sm text-slate-500">
-                    {isFetching || isSearchLoading
-                      ? "Loading documents…"
-                      : "No matching documents yet."}
-                  </div>
-                ) : (
-                  <FileExplorer
-                    folders={folders}
-                    documents={displayedDocs}
-                    currentFolderId={currentFolderId}
-                    onOpenFolder={setCurrentFolderId}
-                    onSelectDocument={handleSelectDocument}
-                    onSelectFolder={(folder) => {
-                      setSelectedFolder(folder);
-                      setSelectedDocumentId(null);
-                    }}
-                    selectedDocumentId={selectedDocumentId}
-                    selectedFolderId={selectedFolder?.id}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className={`flex-1 ${selectedDocumentId ? "flex" : "hidden lg:flex"}`}>
-              {selectedDocumentId ? (
-                isPreviewLoading ? (
-                  <div className="h-full w-full rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70" />
-                ) : (
-                  <DocumentPreview
-                    document={previewDoc}
-                    showTabs={false}
-                    onRetryProcessing={
-                      previewDoc
-                        ? () => {
-                            void reprocessDocument(previewDoc.id);
-                          }
-                        : undefined
-                    }
-                    actions={
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="lg:hidden"
-                          onClick={() => {
-                            setSelectedDocumentId(null);
-                            setSelectedDocument(null);
-                          }}
-                        >
-                          Back to list
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            if (selectedDocumentId) {
-                              navigate(`/app/doc/${selectedDocumentId}`);
-                            }
-                          }}
-                          className="h-auto items-start gap-1 px-4 py-2 text-left"
-                        >
-                          <span className="text-sm font-semibold">Open document</span>
-                        </Button>
-                        {previewDoc ? (
-                          <DocumentActionsMenu
-                            onDelete={() => setDeleteTarget(previewDoc)}
-                            onDownload={() => {
-                              void downloadDocumentFile(
-                                previewDoc.id,
-                                previewDoc.fileName ?? undefined
-                              );
-                            }}
-                            onReprocess={() => {
-                              void reprocessDocument(previewDoc.id);
-                            }}
-                          />
-                        ) : null}
-                      </>
-                    }
-                  />
-                )
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-[32px] border border-dashed border-zinc-200/70 bg-zinc-50/70 px-6 py-10 text-center">
-                  <div className="space-y-2 text-sm text-slate-500">
-                    <p className="text-sm font-medium text-slate-700">
-                      Select a document to preview
-                    </p>
-                    <p>Pick a document from the list to preview it here.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <DriveBrowser
+            breadcrumbs={breadcrumbs}
+            items={items}
+            selectedIds={selectedIds}
+            loading={loading}
+            onNavigate={openFolder}
+            onSelect={handleSelect}
+            onOpen={handleOpen}
+            onRename={(item) => {
+              setSelectedIds(new Set([item.id]));
+              setRenameValue(item.name);
+              setRenameOpen(true);
+            }}
+            onMove={(item) => {
+              setSelectedIds(new Set([item.id]));
+              setMoveOpen(true);
+            }}
+            onDelete={(item) => {
+              setSelectedIds(new Set([item.id]));
+              setDeleteOpen(true);
+            }}
+          />
         )}
       </div>
+
       <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title="Delete this document?"
+        open={deleteOpen}
+        title="Delete selected items?"
         description="This can’t be undone."
         confirmLabel="Delete"
+        onCancel={() => setDeleteOpen(false)}
         onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
       />
-      {isCreateFolderModalOpen ? (
+
+      {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <button
-            className="absolute inset-0 bg-black/40"
-            onClick={() => {
-              setIsCreateFolderModalOpen(false);
-              setNewFolderName("");
-            }}
-            type="button"
-            aria-label="Close create folder modal"
-          />
+          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setCreateOpen(false)} />
           <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Folder
-              </p>
-              <h2 className="text-xl font-semibold text-slate-900">Create a new folder</h2>
-              <p className="text-sm text-slate-500">Give your folder a name to organize files.</p>
+            <h2 className="text-xl font-semibold text-slate-900">Create a new folder</h2>
+            <div className="mt-4">
+              <Input value={newFolderName} placeholder="Folder name" onChange={(event) => setNewFolderName(event.target.value)} />
             </div>
-            <div className="mt-5">
-              <Input
-                autoFocus
-                value={newFolderName}
-                placeholder="Folder name"
-                onChange={(event) => {
-                  setNewFolderName(event.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void handleCreateFolder();
-                  }
-                }}
-              />
-            </div>
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsCreateFolderModalOpen(false);
-                  setNewFolderName("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={() => void handleCreateFolder()} disabled={!newFolderName.trim()}>
-                Create folder
-              </Button>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button onClick={() => void handleCreateFolder()} disabled={!newFolderName.trim()}>Create folder</Button>
             </div>
           </div>
         </div>
       ) : null}
-      {toastMessage ? (
-        <Toast
-          message={toastMessage}
-          onDismiss={() => {
-            setToastMessage(null);
-          }}
-        />
+
+      {renameOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setRenameOpen(false)} />
+          <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-semibold text-slate-900">Rename item</h2>
+            <div className="mt-4">
+              <Input value={renameValue} placeholder="Name" onChange={(event) => setRenameValue(event.target.value)} />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
+              <Button onClick={() => void handleRename()} disabled={!renameValue.trim()}>Save</Button>
+            </div>
+          </div>
+        </div>
       ) : null}
+
+      {moveOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setMoveOpen(false)} />
+          <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-semibold text-slate-900">Move to</h2>
+            <div className="mt-4">
+              <select
+                className="h-11 w-full rounded-2xl border border-zinc-200 px-3 text-sm text-slate-700"
+                value={moveDestination}
+                onChange={(event) => setMoveDestination(event.target.value)}
+              >
+                <option value="root">Root</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
+              <Button onClick={() => void handleMove()}>Move</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {toastMessage ? <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} /> : null}
     </div>
   );
 };
