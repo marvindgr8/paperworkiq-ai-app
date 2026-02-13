@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Bell, MessageCircle, Home, Plus } from "lucide-react";
+import { Bell, Home, Plus } from "lucide-react";
 import clsx from "clsx";
 import Button from "@/components/ui/Button";
 import { useAppGate } from "@/hooks/useAppGate";
@@ -13,13 +13,8 @@ const navItemClass = ({ isActive }: { isActive: boolean }) =>
       : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
   );
 
-interface AppSidebarProps {
-  onNewChat?: () => void;
-}
-
-const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
-  const { docCount, isLoading, openUpload } = useAppGate();
-  const showHomeBadge = !isLoading;
+const AppSidebar = () => {
+  const { openUpload } = useAppGate();
   return (
     <aside className="flex h-full w-72 flex-col gap-6 border-r border-zinc-200/70 bg-zinc-50/70 px-4 py-6">
       <div className="flex items-center justify-between px-2">
@@ -34,17 +29,6 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
           <Plus className="mr-2 h-4 w-4" />
           Upload
         </Button>
-        {onNewChat ? (
-          <Button
-            className="w-full justify-center rounded-2xl"
-            size="sm"
-            variant="outline"
-            onClick={onNewChat}
-          >
-            <MessageCircle className="mr-2 h-4 w-4" />
-            New chat
-          </Button>
-        ) : null}
       </div>
 
       <nav className="space-y-2">
@@ -53,22 +37,11 @@ const AppSidebar = ({ onNewChat }: AppSidebarProps) => {
             <Home className="h-4 w-4" />
             Home
           </span>
-          {showHomeBadge ? (
-            <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">
-              {docCount}
-            </span>
-          ) : null}
         </NavLink>
         <NavLink className={navItemClass} to="/app/actions">
           <span className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Actions
-          </span>
-        </NavLink>
-        <NavLink className={navItemClass} to="/app/chat">
-          <span className="flex items-center gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Chat
           </span>
         </NavLink>
       </nav>
