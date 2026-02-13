@@ -1,6 +1,7 @@
 import { Router } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -44,15 +45,63 @@ const renameDocumentSchema = z.object({
   name: z.string().min(1),
 });
 
-const ensureFolderAccess = async (folderId: string, userId: string) => {
-  const folder = await prisma.folder.findUnique({ where: { id: folderId } });
-  if (!folder || folder.ownerId !== userId) {
+const ensureFolderAccess = async (folderId: string, userId: string, workspaceId: string) => {
+  const folder = await prisma.folder.findFirst({ where: { id: folderId, ownerId: userId, workspaceId } });
+  if (!folder) {
     return null;
   }
   return folder;
 };
 
 await ensureUploadDir();
+
+
+const normalizeRelativePath = (value: string | undefined, fallbackName: string) => {
+  if (!value) {
+    return fallbackName;
+  }
+  return value
+    .replaceAll("\\", "/")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .join("/");
+};
+
+const folderCacheKey = (workspaceId: string, parentId: string | null, folderName: string) =>
+  `${workspaceId}:${parentId ?? "root"}:${folderName.toLowerCase()}`;
+
+const findOrCreateFolder = async (
+  userId: string,
+  workspaceId: string,
+  parentId: string | null,
+  folderName: string,
+  cache: Map<string, string>
+) => {
+  const cacheKey = folderCacheKey(workspaceId, parentId, folderName);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return { id: cached, created: false };
+  }
+
+  const existing = await prisma.folder.findFirst({
+    where: { workspaceId, parentId, name: folderName },
+    select: { id: true },
+  });
+
+  if (existing) {
+    cache.set(cacheKey, existing.id);
+    return { id: existing.id, created: false };
+  }
+
+  const created = await prisma.folder.create({
+    data: { name: folderName, ownerId: userId, workspaceId, parentId },
+    select: { id: true },
+  });
+  cache.set(cacheKey, created.id);
+  return { id: created.id, created: true };
+};
+
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -64,7 +113,8 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const uploadSingle = multer({ storage });
+const uploadMany = multer({ storage });
 
 docsRouter.use(requireAuth);
 
@@ -86,7 +136,7 @@ docsRouter.post(
     }
 
     if (data.folderId) {
-      const folder = await ensureFolderAccess(data.folderId, userId);
+      const folder = await ensureFolderAccess(data.folderId, userId, workspace.id);
       if (!folder) {
         return res.status(404).json({ ok: false, error: "Folder not found" });
       }
@@ -111,7 +161,7 @@ docsRouter.post(
 
 docsRouter.post(
   "/upload",
-  upload.single("file"),
+  uploadSingle.single("file"),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const userId = req.userId;
     if (!userId) {
@@ -129,7 +179,7 @@ docsRouter.post(
     const folderId = typeof req.body.folderId === "string" ? req.body.folderId : undefined;
 
     if (folderId) {
-      const folder = await ensureFolderAccess(folderId, userId);
+      const folder = await ensureFolderAccess(folderId, userId, workspace.id);
       if (!folder) {
         return res.status(404).json({ ok: false, error: "Folder not found" });
       }
@@ -174,6 +224,143 @@ docsRouter.post(
       await deleteStoredFile(file.filename);
       throw error;
     }
+  })
+);
+
+
+docsRouter.post(
+  "/upload-folder",
+  uploadMany.array("files"),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const workspace = await getAccessibleWorkspace(
+      userId,
+      getQueryValue(req.query.workspaceId)
+    );
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const parentFolderId = typeof req.body.parentFolderId === "string" && req.body.parentFolderId.length > 0
+      ? req.body.parentFolderId
+      : null;
+
+    if (parentFolderId) {
+      const folder = await prisma.folder.findFirst({
+        where: { id: parentFolderId, ownerId: userId, workspaceId: workspace.id },
+      });
+      if (!folder) {
+        return res.status(404).json({ ok: false, error: "Parent folder not found" });
+      }
+    }
+
+    const uploadedFiles = (req.files ?? []) as Express.Multer.File[];
+    if (uploadedFiles.length === 0) {
+      return res.status(400).json({ ok: false, error: "Files are required" });
+    }
+
+    const pathsRaw = typeof req.body.paths === "string" ? req.body.paths : "[]";
+    let parsedJson: unknown = [];
+    try {
+      parsedJson = JSON.parse(pathsRaw);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Invalid paths payload" });
+    }
+    const parsedPaths = z.array(z.string()).safeParse(parsedJson);
+    if (!parsedPaths.success) {
+      return res.status(400).json({ ok: false, error: "Invalid paths payload" });
+    }
+
+    const paths = parsedPaths.data;
+    if (paths.length !== uploadedFiles.length) {
+      return res.status(400).json({ ok: false, error: "Paths count must match files count" });
+    }
+
+    const cache = new Map<string, string>();
+    let createdFoldersCount = 0;
+    const createdFiles: Array<{ id: string; name: string; folderId: string | null }> = [];
+    let rootFolderCreatedId: string | null = null;
+
+    try {
+      for (let i = 0; i < uploadedFiles.length; i += 1) {
+        const file = uploadedFiles[i];
+        const relativePath = normalizeRelativePath(paths[i], file.originalname) || file.originalname;
+        const segments = relativePath.split("/").filter(Boolean);
+        const fileName = segments.at(-1) ?? file.originalname;
+        const folderSegments = segments.slice(0, -1);
+
+        let currentParentId = parentFolderId;
+        for (const segment of folderSegments) {
+          const folderResult = await findOrCreateFolder(
+            userId,
+            workspace.id,
+            currentParentId,
+            segment,
+            cache
+          );
+          if (folderResult.created) {
+            createdFoldersCount += 1;
+            if (!rootFolderCreatedId && currentParentId === parentFolderId) {
+              rootFolderCreatedId = folderResult.id;
+            }
+          }
+          currentParentId = folderResult.id;
+        }
+
+        const isImage = file.mimetype.startsWith("image/");
+        const isPdf = file.mimetype === "application/pdf";
+        if (!isImage && !isPdf) {
+          continue;
+        }
+
+        const fileHash = await computeDocumentFileHash(file.path);
+        const storageKey = `${workspace.id}/${currentParentId ?? "root"}/${crypto.randomUUID()}-${fileName}`;
+        const destinationPath = resolveStoragePath(storageKey);
+        await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+        await fs.rename(file.path, destinationPath);
+
+        const doc = await prisma.document.create({
+          data: {
+            userId,
+            workspaceId: workspace.id,
+            title: fileName,
+            fileName,
+            mimeType: file.mimetype,
+            sizeBytes: file.size,
+            storageKey,
+            fileHash,
+            status: "PROCESSING",
+            aiStatus: "PENDING",
+            folderId: currentParentId,
+          },
+          select: { id: true, fileName: true, folderId: true },
+        });
+
+        enqueueDocumentProcessing(doc.id);
+        createdFiles.push({ id: doc.id, name: doc.fileName ?? fileName, folderId: doc.folderId });
+      }
+    } finally {
+      await Promise.all(uploadedFiles.map(async (file) => {
+        try {
+          await fs.access(file.path);
+          await fs.unlink(file.path);
+        } catch {
+          // noop: already moved/deleted
+        }
+      }));
+    }
+
+    res.status(201).json({
+      ok: true,
+      createdFoldersCount,
+      createdFilesCount: createdFiles.length,
+      rootFolderCreatedId,
+      files: createdFiles,
+    });
   })
 );
 
@@ -484,7 +671,7 @@ docsRouter.post(
     }
 
     if (data.folderId) {
-      const folder = await ensureFolderAccess(data.folderId, userId);
+      const folder = await ensureFolderAccess(data.folderId, userId, doc.workspaceId);
       if (!folder) {
         return res.status(404).json({ ok: false, error: "Folder not found" });
       }

@@ -23,9 +23,9 @@ const moveFolderSchema = z.object({
 const getQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
-const ensureFolderOwner = async (folderId: string, ownerId: string) => {
-  const folder = await prisma.folder.findUnique({ where: { id: folderId } });
-  if (!folder || folder.ownerId !== ownerId) {
+const ensureFolderOwner = async (folderId: string, ownerId: string, workspaceId: string) => {
+  const folder = await prisma.folder.findFirst({ where: { id: folderId, ownerId, workspaceId } });
+  if (!folder) {
     return null;
   }
   return folder;
@@ -62,7 +62,7 @@ foldersRouter.get(
     }
 
     const folders = await prisma.folder.findMany({
-      where: { ownerId: userId },
+      where: { ownerId: userId, workspaceId: workspace.id },
       orderBy: [{ name: "asc" }],
     });
 
@@ -79,15 +79,20 @@ foldersRouter.post(
     }
     const data = createFolderSchema.parse(req.body ?? {});
 
+    const workspace = await getAccessibleWorkspace(userId, getQueryValue(req.query.workspaceId));
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
     if (data.parentId) {
-      const parent = await ensureFolderOwner(data.parentId, userId);
+      const parent = await ensureFolderOwner(data.parentId, userId, workspace.id);
       if (!parent) {
         return res.status(404).json({ ok: false, error: "Parent folder not found" });
       }
     }
 
     const folder = await prisma.folder.create({
-      data: { name: data.name, ownerId: userId, parentId: data.parentId ?? null },
+      data: { name: data.name, ownerId: userId, workspaceId: workspace.id, parentId: data.parentId ?? null },
     });
 
     res.status(201).json({ ok: true, folder });
@@ -102,7 +107,11 @@ foldersRouter.patch(
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
     const data = updateFolderSchema.parse(req.body ?? {});
-    const folder = await ensureFolderOwner(req.params.id, userId);
+    const workspace = await getAccessibleWorkspace(userId, getQueryValue(req.query.workspaceId));
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+    const folder = await ensureFolderOwner(req.params.id, userId, workspace.id);
     if (!folder) {
       return res.status(404).json({ ok: false, error: "Folder not found" });
     }
@@ -124,13 +133,17 @@ foldersRouter.post(
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
     const data = moveFolderSchema.parse(req.body ?? {});
-    const folder = await ensureFolderOwner(req.params.id, userId);
+    const workspace = await getAccessibleWorkspace(userId, getQueryValue(req.query.workspaceId));
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+    const folder = await ensureFolderOwner(req.params.id, userId, workspace.id);
     if (!folder) {
       return res.status(404).json({ ok: false, error: "Folder not found" });
     }
 
     if (data.parentId) {
-      const parent = await ensureFolderOwner(data.parentId, userId);
+      const parent = await ensureFolderOwner(data.parentId, userId, workspace.id);
       if (!parent) {
         return res.status(404).json({ ok: false, error: "Parent folder not found" });
       }
@@ -157,7 +170,12 @@ foldersRouter.delete(
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
 
-    const folder = await ensureFolderOwner(req.params.id, userId);
+    const workspace = await getAccessibleWorkspace(userId, getQueryValue(req.query.workspaceId));
+    if (!workspace) {
+      return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const folder = await ensureFolderOwner(req.params.id, userId, workspace.id);
     if (!folder) {
       return res.status(404).json({ ok: false, error: "Folder not found" });
     }

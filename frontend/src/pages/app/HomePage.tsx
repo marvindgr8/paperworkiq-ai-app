@@ -19,6 +19,7 @@ import {
   updateDocument,
   updateFolder,
   uploadDocument,
+  uploadFolder,
   type DocumentDTO,
   type FolderDTO,
 } from "@/lib/api";
@@ -74,7 +75,7 @@ const HomePage = () => {
   useEffect(() => {
     setSelectedItems([]);
     setLastSelectedId(null);
-  }, [currentFolderId]);
+  }, [clearSelection, currentFolderId, refreshItems]);
 
   useEffect(() => {
     if (!toastMessage) {
@@ -206,6 +207,23 @@ const HomePage = () => {
     setDocuments(response.ok ? (response.docs ?? []) : []);
   }, [currentFolderId]);
 
+
+  const handleUploadFolder = useCallback(async (files: File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+
+    const response = await uploadFolder(files, currentFolderId ?? undefined);
+    if (!response.ok) {
+      setToastMessage("Folder upload failed");
+      return;
+    }
+
+    clearSelection();
+    await refreshItems();
+    setToastMessage("Folder uploaded");
+  }, [clearSelection, currentFolderId, refreshItems]);
+
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
     if (!name) {
@@ -280,10 +298,11 @@ const HomePage = () => {
     registerSidebarActions({
       openNewFolderModal: () => setCreateOpen(true),
       uploadFiles: handleUploadFiles,
+      uploadFolder: handleUploadFolder,
     });
 
     return () => registerSidebarActions(null);
-  }, [handleUploadFiles, registerSidebarActions]);
+  }, [handleUploadFiles, handleUploadFolder, registerSidebarActions]);
 
   return (
     <div className="flex h-full flex-col">

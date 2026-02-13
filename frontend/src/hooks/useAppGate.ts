@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 export interface SidebarActions {
   openNewFolderModal: () => void;
   uploadFiles: (files: File[]) => Promise<void> | void;
+  uploadFolder: (files: File[]) => Promise<void> | void;
 }
 
 interface AppGateContextValue {
@@ -13,6 +14,7 @@ interface AppGateContextValue {
   openUpload: () => void;
   openNewFolder: () => void;
   uploadFilesFromSidebar: (files: File[]) => Promise<void>;
+  uploadFolderFromSidebar: (files: File[]) => Promise<void>;
   registerSidebarActions: (actions: SidebarActions | null) => void;
   notifyUploadComplete: () => void;
   uploadSignal: number;
