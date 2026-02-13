@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
 import DriveBrowser, { type DriveItem } from "@/components/documents/DriveBrowser";
@@ -28,7 +28,6 @@ const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentFolderId = searchParams.get("folderId");
   const navigate = useNavigate();
-  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const [folders, setFolders] = useState<FolderDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
@@ -44,7 +43,7 @@ const HomePage = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [moveDestination, setMoveDestination] = useState<string>("root");
-  const { docCount, isLoading, uploadSignal } = useAppGate();
+  const { docCount, isLoading, uploadSignal, registerSidebarActions } = useAppGate();
 
   const uploadFirst = !isLoading && docCount === 0;
 
@@ -197,6 +196,16 @@ const HomePage = () => {
     setDocuments(docResponse.ok ? (docResponse.docs ?? []) : []);
   };
 
+  const handleUploadFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+    await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
+    setToastMessage("Uploaded");
+    const response = await listDocuments({ folderId: currentFolderId ?? "root" });
+    setDocuments(response.ok ? (response.docs ?? []) : []);
+  }, [currentFolderId]);
+
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
     if (!name) {
@@ -267,41 +276,20 @@ const HomePage = () => {
     await refreshItems();
   };
 
+  useEffect(() => {
+    registerSidebarActions({
+      openNewFolderModal: () => setCreateOpen(true),
+      uploadFiles: handleUploadFiles,
+    });
+
+    return () => registerSidebarActions(null);
+  }, [handleUploadFiles, registerSidebarActions]);
+
   return (
     <div className="flex h-full flex-col">
       <AppHeader
         title="Home"
         subtitle="Browse folders and files, then open a document workspace."
-        actions={
-          selectedItems.length === 0 ? (
-            <div className="flex flex-wrap gap-2">
-              <input
-                ref={uploadInputRef}
-                className="hidden"
-                type="file"
-                accept="application/pdf,image/*"
-                multiple
-                onChange={async (event) => {
-                  const files = Array.from(event.target.files ?? []);
-                  if (files.length === 0) {
-                    return;
-                  }
-                  await Promise.all(files.map((file) => uploadDocument(file, currentFolderId ?? undefined)));
-                  event.target.value = "";
-                  setToastMessage("Uploaded");
-                  const response = await listDocuments({ folderId: currentFolderId ?? "root" });
-                  setDocuments(response.ok ? (response.docs ?? []) : []);
-                }}
-              />
-              <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-                New Folder
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => uploadInputRef.current?.click()}>
-                Upload
-              </Button>
-            </div>
-          ) : null
-        }
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-6" onClick={clearSelection}>

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Sparkles } from "lucide-react";
 import AppSidebar from "@/components/app/AppSidebar";
 import EvidenceDrawer from "@/components/app/EvidenceDrawer";
 import { DocumentSelectionContext } from "@/hooks/useDocumentSelection";
-import { AppGateContext } from "@/hooks/useAppGate";
+import { AppGateContext, type SidebarActions } from "@/hooks/useAppGate";
 import { useDocumentCount } from "@/hooks/useDocumentCount";
 import UploadModal from "@/components/uploads/UploadModal";
 import type { DocumentDTO } from "@/lib/api";
@@ -19,12 +19,21 @@ const AppShellLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadSignal, setUploadSignal] = useState(0);
+  const [sidebarActions, setSidebarActions] = useState<SidebarActions | null>(null);
   const { count, isLoading, error, refetch } = useDocumentCount();
 
   const documentContextValue = useMemo(
     () => ({ selectedDocument, setSelectedDocument }),
     [selectedDocument]
   );
+
+  const uploadFilesFromSidebar = useCallback(async (files: File[]) => {
+    if (sidebarActions?.uploadFiles) {
+      await sidebarActions.uploadFiles(files);
+      return;
+    }
+    setUploadOpen(true);
+  }, [sidebarActions]);
 
   const gateContextValue = useMemo(
     () => ({
@@ -33,10 +42,13 @@ const AppShellLayout = () => {
       error,
       refetchDocumentCount: refetch,
       openUpload: () => setUploadOpen(true),
+      openNewFolder: () => sidebarActions?.openNewFolderModal(),
+      uploadFilesFromSidebar,
+      registerSidebarActions: (actions: SidebarActions | null) => setSidebarActions(actions),
       notifyUploadComplete: () => setUploadSignal((prev) => prev + 1),
       uploadSignal,
     }),
-    [count, isLoading, error, refetch, uploadSignal]
+    [count, isLoading, error, refetch, sidebarActions, uploadFilesFromSidebar, uploadSignal]
   );
 
   const handleUploaded = async () => {

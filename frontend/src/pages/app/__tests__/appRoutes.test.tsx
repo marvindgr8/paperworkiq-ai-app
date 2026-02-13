@@ -318,7 +318,8 @@ describe("app routes", () => {
     renderApp("/app/home");
 
     expect(await screen.findByText("📁 Finance")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "New Folder" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }));
     fireEvent.change(screen.getByPlaceholderText("Folder name"), { target: { value: "Receipts" } });
     fireEvent.click(screen.getByRole("button", { name: "Create folder" }));
     expect(createFolder).toHaveBeenCalled();
