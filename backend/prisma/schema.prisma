@@ -133,6 +133,7 @@ model Document {
   fields        ExtractedField[]
   citations     ChatCitation[]
   chatSessions  ChatSession[]
+  chatSessionFiles ChatSessionFile[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -152,6 +153,8 @@ model Folder {
   children    Folder[]  @relation("FolderParent")
   documents   Document[]
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chatRootSessions ChatSession[] @relation("ChatSessionRootFolder")
+  chatSessionFolders ChatSessionFolder[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -183,10 +186,16 @@ model ChatSession {
   workspaceId String
   scope       ChatScope     @default(WORKSPACE)
   documentId  String?
+  scopeType   String        @default("folder")
+  rootFolderId String?
+  includeSubfolders Boolean @default(false)
   user        User          @relation(fields: [userId], references: [id])
   workspace   Workspace     @relation(fields: [workspaceId], references: [id])
   document    Document?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  rootFolder  Folder?       @relation("ChatSessionRootFolder", fields: [rootFolderId], references: [id], onDelete: SetNull)
   messages    ChatMessage[]
+  sessionFiles ChatSessionFile[]
+  sessionFolders ChatSessionFolder[]
   createdAt   DateTime      @default(now())
 
   @@index([userId])
@@ -194,6 +203,28 @@ model ChatSession {
   @@index([documentId])
   @@index([workspaceId, scope])
   @@index([workspaceId, scope, documentId])
+  @@index([rootFolderId])
+  @@index([workspaceId, scopeType, rootFolderId, includeSubfolders])
+}
+
+model ChatSessionFile {
+  sessionId String
+  fileId String
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  file Document @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, fileId])
+  @@index([fileId])
+}
+
+model ChatSessionFolder {
+  sessionId String
+  folderId String
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, folderId])
+  @@index([folderId])
 }
 
 model ChatMessage {

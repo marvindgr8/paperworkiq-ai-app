@@ -46,6 +46,16 @@ export const me = async (token: string) => {
 };
 
 export type ChatScope = "WORKSPACE" | "DOCUMENT";
+export type HomeChatScopeType = "folder" | "selection";
+
+export interface HomeChatScopePayload {
+  workspaceId?: string;
+  scopeType: HomeChatScopeType;
+  rootFolderId: string | null;
+  fileIds: string[];
+  folderIds: string[];
+  includeSubfolders: boolean;
+}
 
 export interface FolderDTO {
   id: string;
@@ -62,6 +72,9 @@ export interface ChatSessionDTO {
   createdAt: string;
   scope: ChatScope;
   documentId?: string | null;
+  scopeType?: HomeChatScopeType;
+  rootFolderId?: string | null;
+  includeSubfolders?: boolean;
 }
 
 export interface ChatMessageDTO {
@@ -104,21 +117,16 @@ export const listChatSessions = async (options?: {
   return response.json();
 };
 
-export const createChatSession = async (options?: {
-  scope?: ChatScope;
-  documentId?: string;
-  folderId?: string;
-}) => {
-  const payload: { scope?: ChatScope; documentId?: string; folderId?: string } = {};
-  if (options?.scope) {
-    payload.scope = options.scope;
-  }
-  if (options?.documentId) {
-    payload.documentId = options.documentId;
-  }
-  if (options?.folderId) {
-    payload.folderId = options.folderId;
-  }
+export const createChatSession = async (
+  options?:
+    | {
+        scope?: ChatScope;
+        documentId?: string;
+        folderId?: string;
+      }
+    | HomeChatScopePayload
+) => {
+  const payload = options ?? {};
   const response = await fetch(`${baseUrl}/api/chat/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
