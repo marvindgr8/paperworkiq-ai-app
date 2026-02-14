@@ -7,6 +7,7 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAuth.js";
 import { ensureWorkspaceAccess, getAccessibleWorkspace } from "../lib/workspace.js";
 import { env } from "../lib/env.js";
+import { processDocument } from "../services/documentProcessing.js";
 
 export const chatRouter = Router();
 
@@ -18,6 +19,15 @@ type ScopePayload = {
   fileIds: string[];
   folderIds: string[];
   includeSubfolders: boolean;
+};
+
+type ChatDoc = {
+  id: string;
+  title: string | null;
+  fileName: string;
+  rawText: string | null;
+  ocrPages: unknown;
+  status: DocumentStatus;
 };
 
 const chatScopeSchema = z.enum([ChatScope.WORKSPACE, ChatScope.DOCUMENT]);
@@ -181,6 +191,86 @@ const resolveCandidateFileIds = async (sessionId: string): Promise<string[]> => 
   }
 
   return getFilesInFolders(session.workspaceId, folderIds);
+};
+
+const buildKeywordCitations = (docs: ChatDoc[], query: string) => {
+  const keywords = Array.from(
+    new Set(
+      query
+        .toLowerCase()
+        .split(/\W+/)
+        .filter((word) => word.length > 3)
+    )
+  );
+
+  const buildSnippet = (text: string, keyword: string) => {
+    const lower = text.toLowerCase();
+    const index = lower.indexOf(keyword);
+    if (index === -1) {
+      return null;
+    }
+    const start = Math.max(0, index - 80);
+    const end = Math.min(text.length, index + 120);
+    return text.slice(start, end).trim();
+  };
+
+  const normalizePages = (pages: unknown): string[] => {
+    if (!Array.isArray(pages)) {
+      return [];
+    }
+    return pages.filter((page): page is string => typeof page === "string");
+  };
+
+  const citations: Array<{
+    documentId: string;
+    documentTitle: string;
+    page?: number;
+    snippet?: string;
+    field?: string;
+  }> = [];
+
+  for (const doc of docs) {
+    const title = doc.title ?? doc.fileName ?? "Document";
+    const ocrText = doc.rawText ?? "";
+    const pages = normalizePages(doc.ocrPages);
+    let snippet: string | null = null;
+    let page: number | undefined;
+
+    if (pages.length > 0) {
+      for (let i = 0; i < pages.length; i += 1) {
+        for (const keyword of keywords) {
+          snippet = buildSnippet(pages[i], keyword);
+          if (snippet) {
+            page = i + 1;
+            break;
+          }
+        }
+        if (snippet) break;
+      }
+    }
+
+    if (!snippet) {
+      for (const keyword of keywords) {
+        snippet = buildSnippet(ocrText, keyword);
+        if (snippet) break;
+      }
+    }
+
+    if (snippet) {
+      citations.push({
+        documentId: doc.id,
+        documentTitle: title,
+        page,
+        snippet,
+      });
+    }
+
+    if (citations.length >= 3) {
+      break;
+    }
+  }
+
+  return citations;
 };
 
 chatRouter.use(requireAuth);
@@ -438,102 +528,34 @@ chatRouter.post(
 
     const candidateFileIds = await resolveCandidateFileIds(session.id);
 
-    const docs = await prisma.document.findMany({
-      where: {
-        workspaceId: session.workspaceId,
-        id: { in: candidateFileIds.length > 0 ? candidateFileIds : ["__none__"] },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        fileName: true,
-        rawText: true,
-        ocrPages: true,
-        fields: true,
-        mimeType: true,
-        status: true,
-      },
-    });
+    const fetchDocs = () =>
+      prisma.document.findMany({
+        where: {
+          workspaceId: session.workspaceId,
+          id: { in: candidateFileIds.length > 0 ? candidateFileIds : ["__none__"] },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          fileName: true,
+          rawText: true,
+          ocrPages: true,
+          status: true,
+        },
+      });
 
-    const keywords = Array.from(
-      new Set(
-        data.content
-          .toLowerCase()
-          .split(/\W+/)
-          .filter((word) => word.length > 3)
-      )
-    );
+    let docs = await fetchDocs();
 
-    const buildSnippet = (text: string, keyword: string) => {
-      const lower = text.toLowerCase();
-      const index = lower.indexOf(keyword);
-      if (index === -1) {
-        return null;
-      }
-      const start = Math.max(0, index - 80);
-      const end = Math.min(text.length, index + 120);
-      return text.slice(start, end).trim();
-    };
+    let citations = buildKeywordCitations(docs, data.content);
+    const notReadyDocs = docs.filter((doc) => doc.status !== DocumentStatus.READY);
 
-    const normalizePages = (pages: unknown): string[] => {
-      if (!Array.isArray(pages)) {
-        return [];
-      }
-      return pages.filter((page): page is string => typeof page === "string");
-    };
-
-    const citations: Array<{
-      documentId: string;
-      documentTitle: string;
-      page?: number;
-      snippet?: string;
-      field?: string;
-    }> = [];
-
-    for (const doc of docs) {
-      const title = doc.title ?? doc.fileName ?? "Document";
-      const ocrText = doc.rawText ?? "";
-      const pages = normalizePages(doc.ocrPages);
-      let snippet: string | null = null;
-      let page: number | undefined;
-
-      if (pages.length > 0) {
-        for (let i = 0; i < pages.length; i += 1) {
-          for (const keyword of keywords) {
-            snippet = buildSnippet(pages[i], keyword);
-            if (snippet) {
-              page = i + 1;
-              break;
-            }
-          }
-          if (snippet) break;
-        }
-      }
-
-      if (!snippet) {
-        for (const keyword of keywords) {
-          snippet = buildSnippet(ocrText, keyword);
-          if (snippet) break;
-        }
-      }
-
-      if (snippet) {
-        citations.push({
-          documentId: doc.id,
-          documentTitle: title,
-          page,
-          snippet,
-        });
-      }
-
-      if (citations.length >= 3) {
-        break;
-      }
+    if (citations.length === 0 && notReadyDocs.length > 0) {
+      await Promise.all(notReadyDocs.map((doc) => processDocument(doc.id)));
+      docs = await fetchDocs();
+      citations = buildKeywordCitations(docs, data.content);
     }
-
-    const notReadyCount = docs.filter((doc) => doc.status !== DocumentStatus.READY).length;
 
     let responseText =
       citations.length === 0
@@ -579,10 +601,6 @@ chatRouter.post(
           // ignore parsing issue
         }
       }
-    }
-
-    if (notReadyCount > 0) {
-      responseText += " Some files are still indexing.";
     }
 
     const assistantMessage = await prisma.chatMessage.create({
