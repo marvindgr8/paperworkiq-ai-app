@@ -4,7 +4,7 @@ ALTER TABLE `ChatSession`
   ADD COLUMN `includeSubfolders` BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX `ChatSession_rootFolderId_idx` ON `ChatSession`(`rootFolderId`);
-CREATE INDEX `ChatSession_workspaceId_scopeType_rootFolderId_includeSubfolders_idx`
+CREATE INDEX `ChatSession_ws_scope_root_sub_idx`
   ON `ChatSession`(`workspaceId`, `scopeType`, `rootFolderId`, `includeSubfolders`);
 
 ALTER TABLE `ChatSession`
