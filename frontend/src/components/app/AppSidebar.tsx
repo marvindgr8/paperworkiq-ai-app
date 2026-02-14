@@ -21,7 +21,8 @@ const AppSidebar = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [isUploadingFolder, setIsUploadingFolder] = useState(false);
+  const [uploadingType, setUploadingType] = useState<"file" | "folder" | null>(null);
+  const isUploading = uploadingType !== null;
 
   useEffect(() => {
     if (!isOpen) {
@@ -72,8 +73,13 @@ const AppSidebar = () => {
             if (files.length === 0) {
               return;
             }
-            await uploadFilesFromSidebar(files);
-            event.target.value = "";
+            setUploadingType("file");
+            try {
+              await uploadFilesFromSidebar(files);
+            } finally {
+              setUploadingType(null);
+              event.target.value = "";
+            }
           }}
         />
         <input
@@ -90,11 +96,11 @@ const AppSidebar = () => {
             if (files.length === 0) {
               return;
             }
-            setIsUploadingFolder(true);
+            setUploadingType("folder");
             try {
               await uploadFolderFromSidebar(files);
             } finally {
-              setIsUploadingFolder(false);
+              setUploadingType(null);
               event.target.value = "";
             }
           }}
@@ -105,11 +111,13 @@ const AppSidebar = () => {
           size="lg"
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          disabled={isUploadingFolder}
+          disabled={isUploading}
           onClick={() => setIsOpen((prev) => !prev)}
         >
           <Plus className="mr-2 h-4 w-4" />
-          {isUploadingFolder ? "Uploading folder…" : "New"}
+          {uploadingType === "folder" ? "Uploading folder…" : null}
+          {uploadingType === "file" ? "Uploading files…" : null}
+          {!uploadingType ? "New" : null}
         </Button>
 
         {isOpen ? (
@@ -133,7 +141,7 @@ const AppSidebar = () => {
             </button>
             <button
               type="button"
-              disabled={isUploadingFolder}
+              disabled={isUploading}
               className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setIsOpen(false);
@@ -147,7 +155,7 @@ const AppSidebar = () => {
             </button>
             <button
               type="button"
-              disabled={isUploadingFolder}
+              disabled={isUploading}
               className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setIsOpen(false);
