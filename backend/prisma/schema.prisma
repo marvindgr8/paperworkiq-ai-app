@@ -204,7 +204,7 @@ model ChatSession {
   @@index([workspaceId, scope])
   @@index([workspaceId, scope, documentId])
   @@index([rootFolderId])
-  @@index([workspaceId, scopeType, rootFolderId, includeSubfolders])
+  @@index([workspaceId, scopeType, rootFolderId, includeSubfolders], map: "ChatSession_ws_scope_root_sub_idx")
 }
 
 model ChatSessionFile {
