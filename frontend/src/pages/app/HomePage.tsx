@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
+import HomeChatDock from "@/components/chat/HomeChatDock";
 import {
   createFolder,
   deleteDocument,
@@ -170,6 +171,9 @@ const HomePage = () => {
 
   const selectedPrimary = selectedDriveItems[0];
   const canRename = selectedItems.length === 1;
+  const selectedFileIds = useMemo(() => selectedDriveItems.filter((item) => item.kind === "file").map((item) => item.id), [selectedDriveItems]);
+  const selectedFolderIds = useMemo(() => selectedDriveItems.filter((item) => item.kind === "folder").map((item) => item.id), [selectedDriveItems]);
+  const currentFolderName = currentFolderId ? folderMap.get(currentFolderId)?.name ?? "Folder" : "Root";
 
   const openFolder = (folderId: string | null) => {
     setSearchParams((params) => {
@@ -435,14 +439,15 @@ const HomePage = () => {
         subtitle="Browse folders and files, then open a document workspace."
       />
 
-      <div className="flex-1 overflow-y-auto px-6 py-6" onClick={clearSelection}>
-        {uploadFirst ? (
-          <UploadFirstEmptyState
-            title="Upload your first document to get started."
-            description="Add a document to unlock summaries, categories, and grounded answers."
-          />
-        ) : (
-          <div onClick={(event) => event.stopPropagation()}>
+      <div className="relative flex-1 overflow-hidden" onClick={clearSelection}>
+        <div className="h-full overflow-y-auto px-6 py-6 pr-6 md:pr-[430px]">
+          {uploadFirst ? (
+            <UploadFirstEmptyState
+              title="Upload your first document to get started."
+              description="Add a document to unlock summaries, categories, and grounded answers."
+            />
+          ) : (
+            <div onClick={(event) => event.stopPropagation()}>
             {dragMessage ? <p className="mb-3 text-sm text-slate-600">{dragMessage}</p> : null}
             {selectedItems.length > 0 ? (
               <SelectionBar
@@ -515,6 +520,17 @@ const HomePage = () => {
             </div>
           </div>
         )}
+        </div>
+
+        {!uploadFirst ? (
+          <HomeChatDock
+            currentFolderId={currentFolderId}
+            currentFolderName={currentFolderName}
+            selectedFileIds={selectedFileIds}
+            selectedFolderIds={selectedFolderIds}
+            onClearSelection={clearSelection}
+          />
+        ) : null}
       </div>
 
       <ConfirmDialog

@@ -22,4 +22,7 @@ export interface ChatSessionDTO {
   createdAt: string;
   scope: ChatScope;
   documentId?: string | null;
+  scopeType?: "folder" | "selection";
+  rootFolderId?: string | null;
+  includeSubfolders?: boolean;
 }

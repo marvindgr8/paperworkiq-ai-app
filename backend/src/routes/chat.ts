@@ -1,7 +1,7 @@
 import { Router } from "express";
 import OpenAI from "openai";
 import { z } from "zod";
-import { ChatScope } from "@prisma/client";
+import { ChatScope, DocumentStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/requireAuth.js";
@@ -10,13 +10,36 @@ import { env } from "../lib/env.js";
 
 export const chatRouter = Router();
 
+type HomeScopeType = "folder" | "selection";
+
+type ScopePayload = {
+  scopeType: HomeScopeType;
+  rootFolderId: string | null;
+  fileIds: string[];
+  folderIds: string[];
+  includeSubfolders: boolean;
+};
+
 const chatScopeSchema = z.enum([ChatScope.WORKSPACE, ChatScope.DOCUMENT]);
+
+const homeScopeSchema = z.object({
+  scopeType: z.enum(["folder", "selection"]),
+  rootFolderId: z.string().nullable().optional(),
+  fileIds: z.array(z.string()).default([]),
+  folderIds: z.array(z.string()).default([]),
+  includeSubfolders: z.boolean().default(false),
+});
 
 const createSessionSchema = z.object({
   workspaceId: z.string().optional(),
   scope: chatScopeSchema.optional(),
   documentId: z.string().optional(),
   folderId: z.string().optional(),
+  scopeType: z.enum(["folder", "selection"]).optional(),
+  rootFolderId: z.string().nullable().optional(),
+  fileIds: z.array(z.string()).optional(),
+  folderIds: z.array(z.string()).optional(),
+  includeSubfolders: z.boolean().optional(),
 });
 
 const messageSchema = z.object({
@@ -39,11 +62,125 @@ const getQueryParam = (value: string | string[] | undefined) => {
   return value;
 };
 
-const resolveScope = (scope?: ChatScope, documentId?: string | null) => {
+const resolveLegacyScope = (scope?: ChatScope, documentId?: string | null) => {
   if (scope) {
     return scope;
   }
   return documentId ? ChatScope.DOCUMENT : ChatScope.WORKSPACE;
+};
+
+const toScopePayload = (data: z.infer<typeof createSessionSchema>): ScopePayload => {
+  if (data.scopeType) {
+    const parsed = homeScopeSchema.parse(data);
+    return {
+      scopeType: parsed.scopeType,
+      rootFolderId: parsed.rootFolderId ?? null,
+      fileIds: parsed.fileIds,
+      folderIds: parsed.folderIds,
+      includeSubfolders: parsed.includeSubfolders,
+    };
+  }
+
+  if (data.scope === ChatScope.DOCUMENT && data.documentId) {
+    return {
+      scopeType: "selection",
+      rootFolderId: null,
+      fileIds: [data.documentId],
+      folderIds: [],
+      includeSubfolders: false,
+    };
+  }
+
+  return {
+    scopeType: "folder",
+    rootFolderId: data.folderId ?? null,
+    fileIds: [],
+    folderIds: [],
+    includeSubfolders: false,
+  };
+};
+
+const getFolderDescendants = async (
+  workspaceId: string,
+  folderId: string
+): Promise<string[]> => {
+  const descendants: string[] = [];
+  const queue = [folderId];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) {
+      continue;
+    }
+    const children = await prisma.folder.findMany({
+      where: { workspaceId, parentId: current },
+      select: { id: true },
+    });
+    for (const child of children) {
+      descendants.push(child.id);
+      queue.push(child.id);
+    }
+  }
+
+  return descendants;
+};
+
+const getFilesInFolders = async (
+  workspaceId: string,
+  folderIds: string[]
+): Promise<string[]> => {
+  if (folderIds.length === 0) {
+    return [];
+  }
+  const docs = await prisma.document.findMany({
+    where: { workspaceId, folderId: { in: folderIds } },
+    select: { id: true },
+  });
+  return docs.map((doc) => doc.id);
+};
+
+const resolveCandidateFileIds = async (sessionId: string): Promise<string[]> => {
+  const session = await prisma.chatSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      sessionFiles: { select: { fileId: true } },
+      sessionFolders: { select: { folderId: true } },
+    },
+  });
+
+  if (!session) {
+    return [];
+  }
+
+  if (session.scopeType === "selection") {
+    const folderRoots = session.sessionFolders.map((item) => item.folderId);
+    const expandedFolders = new Set<string>(folderRoots);
+    for (const rootId of folderRoots) {
+      const descendants = await getFolderDescendants(session.workspaceId, rootId);
+      descendants.forEach((id) => expandedFolders.add(id));
+    }
+
+    const folderFiles = await getFilesInFolders(session.workspaceId, [...expandedFolders]);
+    return Array.from(
+      new Set([...session.sessionFiles.map((file) => file.fileId), ...folderFiles])
+    );
+  }
+
+  if (!session.rootFolderId) {
+    const docs = await prisma.document.findMany({
+      where: { workspaceId: session.workspaceId },
+      select: { id: true },
+    });
+    return docs.map((doc) => doc.id);
+  }
+
+  const folderIds = [session.rootFolderId];
+  if (session.includeSubfolders) {
+    const descendants = await getFolderDescendants(session.workspaceId, session.rootFolderId);
+    folderIds.push(...descendants);
+  }
+
+  return getFilesInFolders(session.workspaceId, folderIds);
 };
 
 chatRouter.use(requireAuth);
@@ -68,23 +205,10 @@ chatRouter.get(
     const rawDocumentId = getQueryParam(req.query.documentId);
     const rawFolderId = getQueryParam(req.query.folderId);
     const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId, folderId: rawFolderId });
-    const scope = resolveScope(query.scope, query.documentId);
+    const scope = resolveLegacyScope(query.scope, query.documentId);
 
     if (scope === ChatScope.DOCUMENT && !query.documentId) {
       return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
-    }
-    if (scope === ChatScope.WORKSPACE && query.documentId) {
-      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
-    }
-
-    if (scope === ChatScope.DOCUMENT && query.documentId) {
-      const document = await prisma.document.findUnique({
-        where: { id: query.documentId },
-        select: { id: true, workspaceId: true },
-      });
-      if (!document || document.workspaceId !== workspace.id) {
-        return res.status(404).json({ ok: false, error: "Document not found" });
-      }
     }
 
     const sessions = await prisma.chatSession.findMany({
@@ -96,7 +220,15 @@ chatRouter.get(
           : {}),
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true, scope: true, documentId: true },
+      select: {
+        id: true,
+        createdAt: true,
+        scope: true,
+        documentId: true,
+        scopeType: true,
+        rootFolderId: true,
+        includeSubfolders: true,
+      },
     });
 
     res.json({ ok: true, sessions });
@@ -117,37 +249,38 @@ chatRouter.post(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
-    const scope = resolveScope(data.scope, data.documentId);
-    if (scope === ChatScope.DOCUMENT && !data.documentId) {
-      return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
-    }
-    if (scope === ChatScope.WORKSPACE && data.documentId) {
-      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
-    }
-    if (data.folderId) {
-      const folder = await prisma.folder.findUnique({ where: { id: data.folderId } });
-      if (!folder || folder.ownerId !== userId) {
-        return res.status(404).json({ ok: false, error: "Folder not found" });
-      }
-    }
+    const legacyScope = resolveLegacyScope(data.scope, data.documentId);
+    const scopePayload = toScopePayload(data);
 
-    if (data.folderId) {
-      const folder = await prisma.folder.findUnique({ where: { id: data.folderId } });
-      if (!folder || folder.ownerId !== userId) {
-        return res.status(404).json({ ok: false, error: "Folder not found" });
-      }
-    }
-
-    if (scope === ChatScope.DOCUMENT && data.documentId) {
-      const document = await prisma.document.findUnique({
-        where: { id: data.documentId },
-        select: { id: true, workspaceId: true },
-      });
-      if (!document) {
+    if (legacyScope === ChatScope.DOCUMENT && data.documentId) {
+      const doc = await prisma.document.findUnique({ where: { id: data.documentId } });
+      if (!doc || doc.workspaceId !== workspace.id) {
         return res.status(404).json({ ok: false, error: "Document not found" });
       }
-      if (document.workspaceId !== workspace.id) {
-        return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    if (scopePayload.rootFolderId) {
+      const rootFolder = await prisma.folder.findUnique({ where: { id: scopePayload.rootFolderId } });
+      if (!rootFolder || rootFolder.workspaceId !== workspace.id) {
+        return res.status(404).json({ ok: false, error: "Folder not found" });
+      }
+    }
+
+    if (scopePayload.folderIds.length > 0) {
+      const folderCount = await prisma.folder.count({
+        where: { id: { in: scopePayload.folderIds }, workspaceId: workspace.id },
+      });
+      if (folderCount !== new Set(scopePayload.folderIds).size) {
+        return res.status(404).json({ ok: false, error: "One or more folders were not found" });
+      }
+    }
+
+    if (scopePayload.fileIds.length > 0) {
+      const docCount = await prisma.document.count({
+        where: { id: { in: scopePayload.fileIds }, workspaceId: workspace.id },
+      });
+      if (docCount !== new Set(scopePayload.fileIds).size) {
+        return res.status(404).json({ ok: false, error: "One or more files were not found" });
       }
     }
 
@@ -155,10 +288,39 @@ chatRouter.post(
       data: {
         userId,
         workspaceId: workspace.id,
-        scope,
-        documentId: scope === ChatScope.DOCUMENT ? data.documentId : null,
+        scope: legacyScope,
+        documentId: legacyScope === ChatScope.DOCUMENT ? data.documentId : null,
+        scopeType: scopePayload.scopeType,
+        rootFolderId: scopePayload.scopeType === "folder" ? scopePayload.rootFolderId : null,
+        includeSubfolders: scopePayload.scopeType === "folder" ? scopePayload.includeSubfolders : false,
+        sessionFiles:
+          scopePayload.scopeType === "selection" && scopePayload.fileIds.length > 0
+            ? {
+                createMany: {
+                  data: scopePayload.fileIds.map((fileId) => ({ fileId })),
+                  skipDuplicates: true,
+                },
+              }
+            : undefined,
+        sessionFolders:
+          scopePayload.scopeType === "selection" && scopePayload.folderIds.length > 0
+            ? {
+                createMany: {
+                  data: scopePayload.folderIds.map((folderId) => ({ folderId })),
+                  skipDuplicates: true,
+                },
+              }
+            : undefined,
       },
-      select: { id: true, createdAt: true, scope: true, documentId: true },
+      select: {
+        id: true,
+        createdAt: true,
+        scope: true,
+        documentId: true,
+        scopeType: true,
+        rootFolderId: true,
+        includeSubfolders: true,
+      },
     });
 
     res.status(201).json({ ok: true, session });
@@ -191,22 +353,10 @@ chatRouter.get(
     const rawDocumentId = getQueryParam(req.query.documentId);
     const rawFolderId = getQueryParam(req.query.folderId);
     const query = querySchema.parse({ scope: rawScope, documentId: rawDocumentId, folderId: rawFolderId });
-    const scope = resolveScope(query.scope, query.documentId ?? session.documentId);
+    const scope = resolveLegacyScope(query.scope, query.documentId ?? session.documentId);
 
     if (scope !== session.scope) {
       return res.status(400).json({ ok: false, error: "Session scope mismatch" });
-    }
-    if (scope === ChatScope.DOCUMENT) {
-      const documentId = query.documentId ?? session.documentId;
-      if (!documentId) {
-        return res.status(400).json({ ok: false, error: "Document scope requires documentId" });
-      }
-      if (session.documentId !== documentId) {
-        return res.status(400).json({ ok: false, error: "Document scope mismatch" });
-      }
-    }
-    if (scope === ChatScope.WORKSPACE && query.documentId) {
-      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
     }
 
     const messages = await prisma.chatMessage.findMany({
@@ -246,7 +396,12 @@ chatRouter.post(
 
     const session = await prisma.chatSession.findUnique({
       where: { id: req.params.id },
-      select: { id: true, workspaceId: true, scope: true, documentId: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        scope: true,
+        documentId: true,
+      },
     });
 
     if (!session) {
@@ -258,7 +413,7 @@ chatRouter.post(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
-    const scope = resolveScope(data.scope, data.documentId ?? session.documentId);
+    const scope = resolveLegacyScope(data.scope, data.documentId ?? session.documentId);
     const resolvedDocumentId =
       scope === ChatScope.DOCUMENT ? data.documentId ?? session.documentId : undefined;
     if (scope !== session.scope) {
@@ -272,9 +427,6 @@ chatRouter.post(
         return res.status(400).json({ ok: false, error: "Document scope mismatch" });
       }
     }
-    if (scope === ChatScope.WORKSPACE && data.documentId) {
-      return res.status(400).json({ ok: false, error: "Workspace scope cannot include documentId" });
-    }
 
     await prisma.chatMessage.create({
       data: {
@@ -284,89 +436,32 @@ chatRouter.post(
       },
     });
 
-    type DocumentContext = {
-      id: string;
-      title: string | null;
-      fileName: string | null;
-      rawText: string | null;
-      ocrPages: unknown;
-      fields: Array<{
-        key: string;
-        valueText: string | null;
-        valueNumber: number | null;
-        valueDate: Date | null;
-        confidence: number | null;
-        sourcePage: number | null;
-        sourceSnippet: string | null;
-      }>;
-      mimeType: string | null;
-    };
+    const candidateFileIds = await resolveCandidateFileIds(session.id);
 
-    const docs: DocumentContext[] =
-      scope === ChatScope.DOCUMENT
-        ? []
-        : await prisma.document.findMany({
-            where: {
-              workspaceId: session.workspaceId,
-              ...(data.folderId ? { folderId: data.folderId } : {}),
-            },
-            orderBy: { createdAt: "desc" },
-            take: 10,
-            select: {
-              id: true,
-              title: true,
-              fileName: true,
-              rawText: true,
-              ocrPages: true,
-              fields: true,
-              mimeType: true,
-            },
-          });
-
-    let scopedDocument: DocumentContext | null = null;
-
-    if (scope === ChatScope.DOCUMENT) {
-      const document = await prisma.document.findUnique({
-        where: { id: resolvedDocumentId },
-        select: {
-          id: true,
-          title: true,
-          fileName: true,
-          rawText: true,
-          ocrPages: true,
-          fields: true,
-          mimeType: true,
-          workspaceId: true,
-        },
-      });
-
-      if (!document) {
-        return res.status(404).json({ ok: false, error: "Document not found" });
-      }
-
-      const canAccessDoc = await ensureWorkspaceAccess(userId, document.workspaceId);
-      if (!canAccessDoc || document.workspaceId !== session.workspaceId) {
-        return res.status(403).json({ ok: false, error: "Workspace access denied" });
-      }
-
-      scopedDocument = {
-        id: document.id,
-        title: document.title,
-        fileName: document.fileName,
-        rawText: document.rawText,
-        ocrPages: document.ocrPages,
-        fields: document.fields,
-        mimeType: document.mimeType,
-      };
-
-      docs.push(scopedDocument);
-    }
+    const docs = await prisma.document.findMany({
+      where: {
+        workspaceId: session.workspaceId,
+        id: { in: candidateFileIds.length > 0 ? candidateFileIds : ["__none__"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        rawText: true,
+        ocrPages: true,
+        fields: true,
+        mimeType: true,
+        status: true,
+      },
+    });
 
     const keywords = Array.from(
       new Set(
         data.content
           .toLowerCase()
-          .split(/\\W+/)
+          .split(/\W+/)
           .filter((word) => word.length > 3)
       )
     );
@@ -389,31 +484,6 @@ chatRouter.post(
       return pages.filter((page): page is string => typeof page === "string");
     };
 
-    const findFieldMatch = (
-      fields: DocumentContext["fields"],
-      keywordList: string[]
-    ): { label: string; value: string } | null => {
-      if (!fields || fields.length === 0) {
-        return null;
-      }
-      const candidates = fields.map((field) => {
-        const value =
-          field.valueText ??
-          (field.valueNumber !== null ? String(field.valueNumber) : null) ??
-          (field.valueDate ? field.valueDate.toISOString().slice(0, 10) : null) ??
-          "";
-        return { label: field.key, value };
-      });
-      const lowerKeywords = keywordList.map((keyword) => keyword.toLowerCase());
-      return (
-        candidates.find((field) => {
-          const label = field.label.toLowerCase();
-          const value = field.value.toLowerCase();
-          return lowerKeywords.some((keyword) => label.includes(keyword) || value.includes(keyword));
-        }) ?? null
-      );
-    };
-
     const citations: Array<{
       documentId: string;
       documentTitle: string;
@@ -427,7 +497,7 @@ chatRouter.post(
       const ocrText = doc.rawText ?? "";
       const pages = normalizePages(doc.ocrPages);
       let snippet: string | null = null;
-      let page: number | undefined = undefined;
+      let page: number | undefined;
 
       if (pages.length > 0) {
         for (let i = 0; i < pages.length; i += 1) {
@@ -438,41 +508,18 @@ chatRouter.post(
               break;
             }
           }
-          if (snippet) {
-            break;
-          }
+          if (snippet) break;
         }
       }
 
       if (!snippet) {
         for (const keyword of keywords) {
           snippet = buildSnippet(ocrText, keyword);
-          if (snippet) {
-            break;
-          }
+          if (snippet) break;
         }
       }
 
-      if (!snippet) {
-        const matchedField = findFieldMatch(doc.fields, keywords);
-        if (matchedField) {
-          snippet = `${matchedField.label}: ${matchedField.value}`;
-          citations.push({
-            documentId: doc.id,
-            documentTitle: title,
-            field: matchedField.label,
-            snippet,
-          });
-        }
-      }
-
-      for (const keyword of keywords) {
-        snippet = snippet ?? buildSnippet(ocrText, keyword);
-        if (snippet) {
-          break;
-        }
-      }
-      if (snippet && !citations.some((citation) => citation.documentId === doc.id)) {
+      if (snippet) {
         citations.push({
           documentId: doc.id,
           documentTitle: title,
@@ -480,45 +527,20 @@ chatRouter.post(
           snippet,
         });
       }
+
       if (citations.length >= 3) {
         break;
       }
     }
 
-    const isDocumentScoped = scope === ChatScope.DOCUMENT;
+    const notReadyCount = docs.filter((doc) => doc.status !== DocumentStatus.READY).length;
 
     let responseText =
       citations.length === 0
-        ? isDocumentScoped
-          ? "I couldn't find a matching passage in this document yet."
-          : data.folderId
-          ? "I couldn't find a matching passage in that folder yet."
-          : "I couldn't find a matching passage in your documents yet."
-        : "I’ve pulled the most relevant passages and will answer with citations.";
+        ? "I couldn't find a matching passage in the current scope yet."
+        : "I’ve pulled the most relevant passages in your current scope.";
 
-    const selectedDocument = scopedDocument ?? docs[0];
-    const documentTitle = selectedDocument?.title ?? selectedDocument?.fileName ?? "Document";
-    const ocrText = selectedDocument?.rawText ?? "";
-    const extractedFields = selectedDocument?.fields ?? [];
-
-    if (isDocumentScoped && (!selectedDocument || !ocrText.trim())) {
-      const assistantMessage = await prisma.chatMessage.create({
-        data: {
-          sessionId: session.id,
-          role: "ASSISTANT",
-          content: "I can’t read the document yet—processing is still running.",
-        },
-        select: { id: true, role: true, content: true, createdAt: true },
-      });
-
-      return res.status(201).json({ ok: true, message: assistantMessage, citations: [] });
-    }
-
-    if (
-      env.OPENAI_API_KEY &&
-      selectedDocument &&
-      (isDocumentScoped ? Boolean(ocrText || citations.length > 0) : citations.length > 0)
-    ) {
+    if (env.OPENAI_API_KEY && citations.length > 0) {
       const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
       const context = citations
         .map(
@@ -531,40 +553,17 @@ chatRouter.post(
 
       const response = await client.chat.completions.create({
         model: "gpt-4.1-mini",
-        messages: isDocumentScoped
-          ? [
-              {
-                role: "system",
-                content:
-                  `Scope: ${ChatScope.DOCUMENT}. You are a document-specific assistant. Use only the provided document data. If the answer is not in the document, say you are not sure. Cite evidence when possible. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.`,
-              },
-              {
-                role: "user",
-                content: [
-                  `Scope: ${ChatScope.DOCUMENT}`,
-                  `Question: ${data.content}`,
-                  `Document: ${documentTitle} (id: ${selectedDocument.id})`,
-                  "Extracted fields:",
-                  JSON.stringify(extractedFields).slice(0, 4000),
-                  "OCR text:",
-                  ocrText.slice(0, 6000),
-                  context ? `Snippets:\n${context}` : "",
-                ]
-                  .filter(Boolean)
-                  .join("\n\n"),
-              },
-            ]
-          : [
-              {
-                role: "system",
-                content:
-                  `Scope: ${ChatScope.WORKSPACE}. Answer the user using only the provided snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.`,
-              },
-              {
-                role: "user",
-                content: `Scope: ${ChatScope.WORKSPACE}\nQuestion: ${data.content}\n\nSnippets:\n${context}`,
-              },
-            ],
+        messages: [
+          {
+            role: "system",
+            content:
+              "Answer the user using only snippets. Return STRICT JSON with { answer, citations: [{ documentId, documentTitle, page, snippet, field }] }.",
+          },
+          {
+            role: "user",
+            content: `Question: ${data.content}\n\nSnippets:\n${context}`,
+          },
+        ],
         temperature: 0.2,
         max_tokens: 400,
       });
@@ -576,21 +575,14 @@ chatRouter.post(
         try {
           const parsed = JSON.parse(content.slice(jsonStart, jsonEnd + 1));
           responseText = parsed.answer ?? responseText;
-          if (Array.isArray(parsed.citations)) {
-            const docTitles = new Map(
-              docs.map((doc) => [doc.id, doc.title ?? doc.fileName ?? "Document"])
-            );
-            const normalized = parsed.citations.map((citation) => ({
-              ...citation,
-              documentTitle:
-                citation.documentTitle ?? docTitles.get(citation.documentId) ?? "Document",
-            }));
-            citations.splice(0, citations.length, ...normalized);
-          }
-        } catch (error) {
-          // ignore parse errors and keep fallback response
+        } catch {
+          // ignore parsing issue
         }
       }
+    }
+
+    if (notReadyCount > 0) {
+      responseText += " Some files are still indexing.";
     }
 
     const assistantMessage = await prisma.chatMessage.create({
