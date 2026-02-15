@@ -12,6 +12,7 @@ import HomeChatDock from "@/components/chat/HomeChatDock";
 import {
   createFolder,
   deleteDocument,
+  downloadDocumentFile,
   deleteFolder,
   listDocuments,
   listFolders,
@@ -401,6 +402,15 @@ const HomePage = () => {
     setToastMessage("Deleted");
   };
 
+
+  const handleDownloadSelected = async () => {
+    const selectedFileSet = new Set(selectedFileIds);
+    const filesToDownload = documents.filter((doc) => selectedFileSet.has(doc.id));
+    for (const file of filesToDownload) {
+      await downloadDocumentFile(file.id, file.fileName ?? undefined);
+    }
+  };
+
   const handleMoveSelected = async () => {
     const destinationId = moveDestination === "root" ? null : moveDestination;
     for (const target of selectedDriveItems) {
@@ -453,7 +463,13 @@ const HomePage = () => {
               <SelectionBar
                 selectedCount={selectedItems.length}
                 renameDisabled={!canRename}
+                downloadDisabled={selectedFileIds.length === 0 || isUploading}
                 onClearSelection={clearSelection}
+                onDownload={() => {
+                  if (!isUploading) {
+                    void handleDownloadSelected();
+                  }
+                }}
                 onMove={() => { if (!isUploading) setMoveOpen(true); }}
                 onRename={() => {
                   if (!selectedPrimary) {
@@ -499,6 +515,16 @@ const HomePage = () => {
                   setLastSelectedId(item.id);
                   setRenameValue(item.name);
                   setRenameOpen(true);
+                }}
+                onDownload={(item) => {
+                  if (isUploading || item.kind !== "file") {
+                    return;
+                  }
+                  const matchingDocument = documents.find((doc) => doc.id === item.id);
+                  if (!matchingDocument) {
+                    return;
+                  }
+                  void downloadDocumentFile(matchingDocument.id, matchingDocument.fileName ?? undefined);
                 }}
                 onMove={(item) => {
                   if (isUploading) {

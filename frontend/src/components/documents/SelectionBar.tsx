@@ -1,9 +1,11 @@
-import { Move, Pencil, Trash2, X } from "lucide-react";
+import { Download, Move, Pencil, Trash2, X } from "lucide-react";
 
 interface SelectionBarProps {
   selectedCount: number;
   renameDisabled: boolean;
+  downloadDisabled: boolean;
   onClearSelection: () => void;
+  onDownload: () => void;
   onMove: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -15,7 +17,9 @@ const baseIconButtonClass =
 const SelectionBar = ({
   selectedCount,
   renameDisabled,
+  downloadDisabled,
   onClearSelection,
+  onDownload,
   onMove,
   onRename,
   onDelete,
@@ -28,6 +32,15 @@ const SelectionBar = ({
       <span className="text-sm font-medium">{selectedCount} selected</span>
     </div>
     <div className="flex items-center gap-3">
+      <button
+        type="button"
+        className={`${baseIconButtonClass} ${downloadDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+        onClick={onDownload}
+        disabled={downloadDisabled}
+        aria-label="Download selected files"
+      >
+        <Download className="h-4 w-4" />
+      </button>
       <button type="button" className={baseIconButtonClass} onClick={onMove} aria-label="Move selected items">
         <Move className="h-4 w-4" />
       </button>
