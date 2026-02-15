@@ -55,7 +55,24 @@ describe("DocumentPreview", () => {
     render(<DocumentPreview document={doc} />);
 
     await waitFor(() => {
-      expect(screen.getByTitle("PDF preview")).toBeInTheDocument();
+      expect(screen.getByTitle("Document preview")).toBeInTheDocument();
+    });
+  });
+
+  it("renders document iframe preview for supported office file types", async () => {
+    const doc: DocumentDTO = {
+      id: "doc-3",
+      title: "Lease",
+      fileName: "lease.docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      status: "READY",
+      createdAt: new Date().toISOString(),
+    };
+
+    render(<DocumentPreview document={doc} />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Document preview")).toBeInTheDocument();
     });
   });
 });

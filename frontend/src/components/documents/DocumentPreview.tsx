@@ -98,7 +98,18 @@ const DocumentPreview = ({
   const [showOcr, setShowOcr] = useState(false);
 
   const fields = useMemo(() => buildFieldList(document), [document]);
-  const isPdf = document?.mimeType === "application/pdf";
+  const mimeType = document?.mimeType ?? "";
+  const isPdf = mimeType === "application/pdf";
+  const isImage = mimeType.startsWith("image/");
+  const canInlineFramePreview =
+    isPdf ||
+    isImage ||
+    mimeType === "text/csv" ||
+    mimeType === "application/csv" ||
+    mimeType === "application/msword" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mimeType === "application/vnd.ms-excel" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   const status = document?.status ?? "UPLOADED";
   const statusLabel = formatStatus(status);
   const badgeClass = statusStyles[status] ?? "bg-slate-100 text-slate-600";
@@ -284,21 +295,40 @@ const DocumentPreview = ({
               {previewError}
             </div>
           ) : previewUrl ? (
-            isPdf ? (
+            isPdf || !isImage ? (
               <div
                 className={clsx(
                   "flex items-center justify-center rounded-[24px] bg-zinc-50/50 p-4",
                   size === "compact" ? "h-40" : "min-h-[520px]"
                 )}
               >
-                <iframe
-                  title="PDF preview"
-                  src={previewUrl}
-                  className={clsx(
-                    "w-full rounded-2xl",
-                    size === "compact" ? "h-40" : "h-[520px]"
-                  )}
-                />
+                {canInlineFramePreview ? (
+                  <iframe
+                    title="Document preview"
+                    src={previewUrl}
+                    className={clsx(
+                      "w-full rounded-2xl",
+                      size === "compact" ? "h-40" : "h-[520px]"
+                    )}
+                  />
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-200/70 bg-white p-6 text-center">
+                    <p className="text-sm font-medium text-slate-700">
+                      Inline preview isn't supported for this file type.
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Open it in a new tab to review the uploaded file.
+                    </p>
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-zinc-200/80 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-zinc-50"
+                    >
+                      Open file
+                    </a>
+                  </div>
+                )}
               </div>
             ) : (
               <div
