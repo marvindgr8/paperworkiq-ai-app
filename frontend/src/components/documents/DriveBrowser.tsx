@@ -26,6 +26,7 @@ interface DriveBrowserProps {
   onOpen: (item: DriveItem) => void;
   onRename: (item: DriveItem) => void;
   onMove: (item: DriveItem) => void;
+  onDownload: (item: DriveItem) => void;
   onDelete: (item: DriveItem) => void;
   onClearSelection: () => void;
 }
@@ -72,6 +73,7 @@ const DriveBrowser = ({
   onOpen,
   onRename,
   onMove,
+  onDownload,
   onDelete,
   onClearSelection,
 }: DriveBrowserProps) => {
@@ -171,6 +173,11 @@ const DriveBrowser = ({
                           <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => onMove(item)}>
                             Move
                           </Button>
+                          {item.kind === "file" ? (
+                            <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => onDownload(item)}>
+                              Download
+                            </Button>
+                          ) : null}
                           <Button size="sm" variant="ghost" className="w-full justify-start text-rose-600" onClick={() => onDelete(item)}>
                             Delete
                           </Button>
