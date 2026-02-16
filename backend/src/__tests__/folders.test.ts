@@ -107,4 +107,84 @@ describe("folders routes", () => {
 
     await cleanupUser(email);
   });
+
+  it("allows sharing folders and documents with view/edit permissions", async () => {
+    const ownerEmail = `folders-share-owner-${Date.now()}@example.com`;
+    const viewerEmail = `folders-share-viewer-${Date.now()}@example.com`;
+    const ownerToken = await registerUser(ownerEmail);
+    const viewerToken = await registerUser(viewerEmail);
+
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    const ownerWorkspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: owner.id } });
+    const viewer = await prisma.user.findUniqueOrThrow({ where: { email: viewerEmail } });
+
+    await prisma.workspaceMember.create({
+      data: { workspaceId: ownerWorkspace.id, userId: viewer.id, role: "MEMBER" },
+    });
+
+    const folder = await prisma.folder.create({
+      data: { name: "Shared Folder", ownerId: owner.id, workspaceId: ownerWorkspace.id },
+    });
+    const doc = await prisma.document.create({
+      data: { userId: owner.id, workspaceId: ownerWorkspace.id, folderId: folder.id, title: "Shared Doc" },
+    });
+
+    const shareFolderView = await request(app)
+      .post(`/api/folders/${folder.id}/share`)
+      .query({ workspaceId: ownerWorkspace.id })
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: viewerEmail, permission: "VIEW" });
+    expect(shareFolderView.status).toBe(200);
+
+    const shareDocEdit = await request(app)
+      .post(`/api/docs/${doc.id}/share`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: viewerEmail, permission: "EDIT" });
+    expect(shareDocEdit.status).toBe(200);
+
+    const listFolders = await request(app)
+      .get("/api/folders")
+      .query({ workspaceId: ownerWorkspace.id })
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(listFolders.status).toBe(200);
+    expect(listFolders.body.folders.some((item: { id: string }) => item.id === folder.id)).toBe(true);
+
+    const listDocs = await request(app)
+      .get("/api/docs")
+      .query({ workspaceId: ownerWorkspace.id, folderId: folder.id })
+      .set("Authorization", `Bearer ${viewerToken}`);
+    expect(listDocs.status).toBe(200);
+    expect(listDocs.body.docs.some((item: { id: string }) => item.id === doc.id)).toBe(true);
+
+    const renameFolderDenied = await request(app)
+      .patch(`/api/folders/${folder.id}`)
+      .query({ workspaceId: ownerWorkspace.id })
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ name: "Should fail" });
+    expect(renameFolderDenied.status).toBe(403);
+
+    const shareFolderEdit = await request(app)
+      .post(`/api/folders/${folder.id}/share`)
+      .query({ workspaceId: ownerWorkspace.id })
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: viewerEmail, permission: "EDIT" });
+    expect(shareFolderEdit.status).toBe(200);
+
+    const renameFolderAllowed = await request(app)
+      .patch(`/api/folders/${folder.id}`)
+      .query({ workspaceId: ownerWorkspace.id })
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ name: "Viewer renamed" });
+    expect(renameFolderAllowed.status).toBe(200);
+
+    const renameDocAllowed = await request(app)
+      .patch(`/api/docs/${doc.id}`)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .send({ name: "Viewer doc rename" });
+    expect(renameDocAllowed.status).toBe(200);
+
+    await cleanupUser(ownerEmail);
+    await cleanupUser(viewerEmail);
+  });
+
 });

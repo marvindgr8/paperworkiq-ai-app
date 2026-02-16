@@ -34,10 +34,10 @@ describe("WorkspaceMenu", () => {
     renderMenu();
 
     fireEvent.click(screen.getByRole("button", { name: /workspace menu/i }));
-    expect(screen.getByText("Personal workspace")).toBeInTheDocument();
+    expect(screen.getByText("Personal workspace · share files & folders")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByText("Personal workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal workspace · share files & folders")).not.toBeInTheDocument();
   });
 
   it("signs out and navigates away", async () => {

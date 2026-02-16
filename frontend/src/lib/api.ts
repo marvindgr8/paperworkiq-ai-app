@@ -406,3 +406,22 @@ export const moveDocument = async (id: string, payload: { folderId?: string | nu
   });
   return response.json();
 };
+
+
+export const shareDocument = async (id: string, payload: { email: string; permission?: "VIEW" | "EDIT" }) => {
+  const response = await fetch(`${baseUrl}/api/docs/${id}/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
+
+export const shareFolder = async (id: string, payload: { email: string; permission?: "VIEW" | "EDIT" }) => {
+  const response = await fetch(`${baseUrl}/api/folders/${id}/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+};
