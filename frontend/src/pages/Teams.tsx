@@ -7,13 +7,13 @@ const Teams = () => {
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
           For teams
         </p>
-        <h1 className="text-3xl font-semibold text-slate-900">Teams is coming soon.</h1>
+        <h1 className="text-3xl font-semibold text-slate-900">Sharing is live. Team Workspaces are next.</h1>
         <p className="text-slate-600">
-          PaperworkIQ will support shared workspaces, access controls, and audit trails for families
-          and companies that need to collaborate.
+          You can now share individual files and folders today. Team Workspaces, granular access
+          controls, and audit trails are coming next for families and companies that collaborate.
         </p>
         <Button href="/signup" size="lg">
-          Get early access
+          Join the waitlist for Team Workspaces
         </Button>
       </div>
     </div>

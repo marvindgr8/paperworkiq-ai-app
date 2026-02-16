@@ -58,12 +58,40 @@ const renameDocumentSchema = z.object({
   name: z.string().min(1),
 });
 
+
+const shareDocumentSchema = z.object({
+  email: z.string().email(),
+  permission: z.enum(["VIEW", "EDIT"]).default("VIEW"),
+});
+
 const ensureFolderAccess = async (folderId: string, userId: string, workspaceId: string) => {
-  const folder = await prisma.folder.findFirst({ where: { id: folderId, ownerId: userId, workspaceId } });
+  const folder = await prisma.folder.findFirst({
+    where: {
+      id: folderId,
+      workspaceId,
+      OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+    },
+  });
   if (!folder) {
     return null;
   }
   return folder;
+};
+
+const canEditDocument = async (documentId: string, userId: string) => {
+  const doc = await prisma.document.findFirst({
+    where: {
+      id: documentId,
+      OR: [
+        { userId },
+        { shares: { some: { userId, permission: "EDIT" } } },
+        { folder: { shares: { some: { userId, permission: "EDIT" } } } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  return Boolean(doc);
 };
 
 await ensureUploadDir();
@@ -394,6 +422,11 @@ docsRouter.get(
 
     const where = {
       workspaceId: workspace.id,
+      OR: [
+        { userId },
+        { shares: { some: { userId } } },
+        { folder: { shares: { some: { userId } } } },
+      ],
       ...(categoryId ? { categoryId } : {}),
       ...(categoryName
         ? { category: { name: { equals: categoryName, mode: "insensitive" } } }
@@ -470,7 +503,16 @@ docsRouter.get(
     const docs = await prisma.document.findMany({
       where: {
         workspaceId: workspace.id,
-        OR: orFilters,
+        AND: [
+          {
+            OR: [
+              { userId },
+              { shares: { some: { userId } } },
+              { folder: { shares: { some: { userId } } } },
+            ],
+          },
+          { OR: orFilters },
+        ],
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -520,7 +562,7 @@ docsRouter.get(
     }
 
     const count = await prisma.document.count({
-      where: { workspaceId: workspace.id },
+      where: { workspaceId: workspace.id, OR: [{ userId }, { shares: { some: { userId } } }, { folder: { shares: { some: { userId } } } }] },
     });
 
     res.json({ ok: true, count });
@@ -678,6 +720,11 @@ docsRouter.post(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    const canEdit = await canEditDocument(doc.id, userId);
+    if (!canEdit) {
+      return res.status(403).json({ ok: false, error: "Document edit access denied" });
+    }
+
     if (data.folderId) {
       const folder = await ensureFolderAccess(data.folderId, userId, doc.workspaceId);
       if (!folder) {
@@ -714,6 +761,11 @@ docsRouter.patch(
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
     }
 
+    const canEdit = await canEditDocument(doc.id, userId);
+    if (!canEdit) {
+      return res.status(403).json({ ok: false, error: "Document edit access denied" });
+    }
+
     const updated = await prisma.document.update({
       where: { id: doc.id },
       data: { title: data.name, fileName: data.name },
@@ -721,6 +773,64 @@ docsRouter.patch(
     });
 
     res.json({ ok: true, doc: updated });
+  })
+);
+
+docsRouter.post(
+  "/:id/share",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const data = shareDocumentSchema.parse(req.body ?? {});
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+    if (!doc) {
+      return res.status(404).json({ ok: false, error: "Document not found" });
+    }
+
+    if (doc.userId !== userId) {
+      return res.status(403).json({ ok: false, error: "Only owner can share document" });
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { email: data.email } });
+    if (!targetUser) {
+      return res.status(404).json({ ok: false, error: "User not found" });
+    }
+
+    await prisma.documentShare.upsert({
+      where: { documentId_userId: { documentId: doc.id, userId: targetUser.id } },
+      update: { permission: data.permission },
+      create: { documentId: doc.id, userId: targetUser.id, permission: data.permission },
+    });
+
+    return res.json({ ok: true });
+  })
+);
+
+docsRouter.delete(
+  "/:id/share/:sharedUserId",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+    if (!doc) {
+      return res.status(404).json({ ok: false, error: "Document not found" });
+    }
+
+    if (doc.userId !== userId) {
+      return res.status(403).json({ ok: false, error: "Only owner can unshare document" });
+    }
+
+    await prisma.documentShare.deleteMany({
+      where: { documentId: doc.id, userId: req.params.sharedUserId },
+    });
+
+    return res.json({ ok: true });
   })
 );
 
@@ -740,6 +850,11 @@ docsRouter.delete(
     const canAccess = await ensureWorkspaceAccess(userId, doc.workspaceId);
     if (!canAccess) {
       return res.status(403).json({ ok: false, error: "Workspace access denied" });
+    }
+
+    const canEdit = await canEditDocument(doc.id, userId);
+    if (!canEdit) {
+      return res.status(403).json({ ok: false, error: "Document edit access denied" });
     }
 
     await prisma.extractedField.deleteMany({ where: { documentId: doc.id } });

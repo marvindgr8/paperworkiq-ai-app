@@ -11,7 +11,7 @@ const WorkspaceMenu = () => {
   const triggerRef = useRef<HTMLButtonElement>(null);
   // TODO: Replace with real workspace data when available.
   const workspaceName = "Personal";
-  const workspaceSubtitle = "Personal workspace";
+  const workspaceSubtitle = "Personal workspace · share files & folders";
 
   useEffect(() => {
     if (!isOpen) {

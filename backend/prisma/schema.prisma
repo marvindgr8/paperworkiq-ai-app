@@ -42,6 +42,11 @@ enum WorkspaceRole {
   MEMBER
 }
 
+enum SharePermission {
+  VIEW
+  EDIT
+}
+
 model User {
   id                 String            @id @default(cuid())
   email              String            @unique
@@ -51,6 +56,8 @@ model User {
   sessions           ChatSession[]
   ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
   workspaceMembers   WorkspaceMember[]
+  sharedDocuments    DocumentShare[]
+  sharedFolders      FolderShare[]
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 }
@@ -134,6 +141,7 @@ model Document {
   citations     ChatCitation[]
   chatSessions  ChatSession[]
   chatSessionFiles ChatSessionFile[]
+  shares        DocumentShare[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -155,6 +163,7 @@ model Folder {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   chatRootSessions ChatSession[] @relation("ChatSessionRootFolder")
   chatSessionFolders ChatSessionFolder[]
+  shares      FolderShare[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -162,6 +171,30 @@ model Folder {
   @@index([ownerId])
   @@index([workspaceId])
   @@index([parentId])
+}
+
+model DocumentShare {
+  documentId  String
+  userId      String
+  permission  SharePermission @default(VIEW)
+  createdAt   DateTime @default(now())
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@index([userId])
+}
+
+model FolderShare {
+  folderId    String
+  userId      String
+  permission  SharePermission @default(VIEW)
+  createdAt   DateTime @default(now())
+  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([folderId, userId])
+  @@index([userId])
 }
 
 model ExtractedField {

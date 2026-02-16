@@ -18,6 +18,8 @@ import {
   listFolders,
   moveDocument,
   moveFolder,
+  shareDocument,
+  shareFolder,
   updateDocument,
   updateFolder,
   uploadFiles,
@@ -49,6 +51,9 @@ const HomePage = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [sharePermission, setSharePermission] = useState<"VIEW" | "EDIT">("VIEW");
   const [newFolderName, setNewFolderName] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [moveDestination, setMoveDestination] = useState<string>("root");
@@ -426,6 +431,32 @@ const HomePage = () => {
     await refreshItems();
   };
 
+  const handleShareSelected = async () => {
+    if (!selectedPrimary) {
+      return;
+    }
+
+    const email = shareEmail.trim();
+    if (!email) {
+      return;
+    }
+
+    const response =
+      selectedPrimary.kind === "folder"
+        ? await shareFolder(selectedPrimary.id, { email, permission: sharePermission })
+        : await shareDocument(selectedPrimary.id, { email, permission: sharePermission });
+
+    if (!response.ok) {
+      setToastMessage(response.error ?? "Unable to share item");
+      return;
+    }
+
+    setShareOpen(false);
+    setShareEmail("");
+    setSharePermission("VIEW");
+    setToastMessage("Shared");
+  };
+
   useEffect(() => {
     registerSidebarActions({
       openNewFolderModal: () => {
@@ -542,6 +573,14 @@ const HomePage = () => {
                   setLastSelectedId(item.id);
                   setDeleteOpen(true);
                 }}
+                onShare={(item) => {
+                  if (isUploading) {
+                    return;
+                  }
+                  setSelectedItems([item.id]);
+                  setLastSelectedId(item.id);
+                  setShareOpen(true);
+                }}
               />
             </div>
           </div>
@@ -643,6 +682,33 @@ const HomePage = () => {
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
               <Button onClick={() => void handleMoveSelected()}>Move</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      
+
+      {shareOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button className="absolute inset-0 bg-black/40" type="button" onClick={() => setShareOpen(false)} />
+          <div className="relative w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-semibold text-slate-900">Share item</h2>
+            <p className="mt-1 text-sm text-slate-500">Invite someone by email to view or edit this item.</p>
+            <div className="mt-4 space-y-3">
+              <Input value={shareEmail} placeholder="teammate@example.com" onChange={(event) => setShareEmail(event.target.value)} />
+              <select
+                className="h-11 w-full rounded-2xl border border-zinc-200 px-3 text-sm text-slate-700"
+                value={sharePermission}
+                onChange={(event) => setSharePermission(event.target.value as "VIEW" | "EDIT")}
+              >
+                <option value="VIEW">Can view</option>
+                <option value="EDIT">Can edit</option>
+              </select>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShareOpen(false)}>Cancel</Button>
+              <Button onClick={() => void handleShareSelected()} disabled={!shareEmail.trim()}>Share</Button>
             </div>
           </div>
         </div>

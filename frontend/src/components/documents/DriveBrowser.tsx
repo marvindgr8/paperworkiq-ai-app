@@ -28,6 +28,7 @@ interface DriveBrowserProps {
   onMove: (item: DriveItem) => void;
   onDownload: (item: DriveItem) => void;
   onDelete: (item: DriveItem) => void;
+  onShare: (item: DriveItem) => void;
   onClearSelection: () => void;
 }
 
@@ -75,6 +76,7 @@ const DriveBrowser = ({
   onMove,
   onDownload,
   onDelete,
+  onShare,
   onClearSelection,
 }: DriveBrowserProps) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -178,6 +180,9 @@ const DriveBrowser = ({
                               Download
                             </Button>
                           ) : null}
+                          <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => onShare(item)}>
+                            Share
+                          </Button>
                           <Button size="sm" variant="ghost" className="w-full justify-start text-rose-600" onClick={() => onDelete(item)}>
                             Delete
                           </Button>
