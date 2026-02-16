@@ -494,6 +494,7 @@ const HomePage = () => {
               <SelectionBar
                 selectedCount={selectedItems.length}
                 renameDisabled={!canRename}
+                shareDisabled={!canRename || isUploading}
                 downloadDisabled={selectedFileIds.length === 0 || isUploading}
                 onClearSelection={clearSelection}
                 onDownload={() => {
@@ -502,6 +503,15 @@ const HomePage = () => {
                   }
                 }}
                 onMove={() => { if (!isUploading) setMoveOpen(true); }}
+                onShare={() => {
+                  if (!selectedPrimary) {
+                    return;
+                  }
+                  if (isUploading) {
+                    return;
+                  }
+                  setShareOpen(true);
+                }}
                 onRename={() => {
                   if (!selectedPrimary) {
                     return;

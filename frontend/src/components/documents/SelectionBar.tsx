@@ -1,13 +1,15 @@
-import { Download, Move, Pencil, Trash2, X } from "lucide-react";
+import { Download, Move, Pencil, Share2, Trash2, X } from "lucide-react";
 
 interface SelectionBarProps {
   selectedCount: number;
   renameDisabled: boolean;
+  shareDisabled: boolean;
   downloadDisabled: boolean;
   onClearSelection: () => void;
   onDownload: () => void;
   onMove: () => void;
   onRename: () => void;
+  onShare: () => void;
   onDelete: () => void;
 }
 
@@ -17,11 +19,13 @@ const baseIconButtonClass =
 const SelectionBar = ({
   selectedCount,
   renameDisabled,
+  shareDisabled,
   downloadDisabled,
   onClearSelection,
   onDownload,
   onMove,
   onRename,
+  onShare,
   onDelete,
 }: SelectionBarProps) => (
   <div className="mb-4 flex items-center justify-between rounded-lg border bg-gray-100 px-4 py-2">
@@ -43,6 +47,15 @@ const SelectionBar = ({
       </button>
       <button type="button" className={baseIconButtonClass} onClick={onMove} aria-label="Move selected items">
         <Move className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        className={`${baseIconButtonClass} ${shareDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+        onClick={onShare}
+        disabled={shareDisabled}
+        aria-label="Share selected item"
+      >
+        <Share2 className="h-4 w-4" />
       </button>
       <button
         type="button"
