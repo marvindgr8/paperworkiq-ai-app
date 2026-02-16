@@ -11,6 +11,7 @@ import {
   extractTextFromPdfBuffer,
 } from "./ocrService.js";
 import { readStoredFile } from "./storageService.js";
+import { extractTextFromOfficeBuffer } from "./officeExtractionService.js";
 
 const extractionFieldSchema = z.object({
   key: z.string().min(1),
@@ -197,8 +198,12 @@ export const processDocument = async (documentId: string) => {
       || document.mimeType === "application/vnd.ms-excel"
       || document.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     ) {
-      text = "";
-      pages = [];
+      const officeText = await extractTextFromOfficeBuffer({
+        buffer,
+        mimeType: document.mimeType,
+      });
+      text = officeText.text;
+      pages = officeText.pages;
     } else {
       throw new Error("Unsupported file type for OCR.");
     }
