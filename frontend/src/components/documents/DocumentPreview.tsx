@@ -127,7 +127,7 @@ const DocumentPreview = ({
   useEffect(() => {
     let isMounted = true;
     const fetchPreview = async () => {
-      if (!document || document.status !== "READY") {
+      if (!document) {
         setPreviewUrl(null);
         setPreviewError(null);
         return;
@@ -267,16 +267,7 @@ const DocumentPreview = ({
 
       {!showTabs || activeTab === "preview" ? (
         <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-sm">
-          {status !== "READY" ? (
-            <div
-              className={clsx(
-                "flex items-center justify-center rounded-[24px] border border-dashed border-zinc-200/70 bg-zinc-50/70 text-sm text-slate-500",
-                size === "compact" ? "h-40" : "min-h-[420px]"
-              )}
-            >
-              Preview not ready yet.
-            </div>
-          ) : isPreviewLoading ? (
+          {isPreviewLoading ? (
             <div
               className={clsx(
                 "flex items-center justify-center rounded-[24px] bg-zinc-50/70 text-sm text-slate-500",
@@ -292,7 +283,7 @@ const DocumentPreview = ({
                 size === "compact" ? "h-40" : "min-h-[420px]"
               )}
             >
-              {previewError}
+              {status === "READY" ? previewError : "Preview not ready yet."}
             </div>
           ) : previewUrl ? (
             isPdf || !isImage ? (
