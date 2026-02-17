@@ -147,7 +147,7 @@ const DriveBrowser = ({
                         onOpen(item);
                       }
                     }}
-                    className={`grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_120px_56px] items-center rounded-lg p-3 text-sm transition ${
+                    className={`grid select-none grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_120px_56px] items-center rounded-lg p-3 text-sm transition ${
                       isSelected ? "border border-blue-400 bg-blue-50" : "border border-transparent hover:bg-gray-50"
                     }`}
                   >
