@@ -490,41 +490,43 @@ const HomePage = () => {
           ) : (
             <div onClick={(event) => event.stopPropagation()}>
             {dragMessage ? <p className="mb-3 text-sm text-slate-600">{dragMessage}</p> : null}
-            {selectedItems.length > 0 ? (
-              <SelectionBar
-                selectedCount={selectedItems.length}
-                renameDisabled={!canRename}
-                shareDisabled={!canRename || isUploading}
-                downloadDisabled={selectedFileIds.length === 0 || isUploading}
-                onClearSelection={clearSelection}
-                onDownload={() => {
-                  if (!isUploading) {
-                    void handleDownloadSelected();
-                  }
-                }}
-                onMove={() => { if (!isUploading) setMoveOpen(true); }}
-                onShare={() => {
-                  if (!selectedPrimary) {
-                    return;
-                  }
-                  if (isUploading) {
-                    return;
-                  }
-                  setShareOpen(true);
-                }}
-                onRename={() => {
-                  if (!selectedPrimary) {
-                    return;
-                  }
-                  if (isUploading) {
-                    return;
-                  }
-                  setRenameValue(selectedPrimary.name);
-                  setRenameOpen(true);
-                }}
-                onDelete={() => { if (!isUploading) setDeleteOpen(true); }}
-              />
-            ) : null}
+            <div className="mb-4 min-h-12">
+              {selectedItems.length > 0 ? (
+                <SelectionBar
+                  selectedCount={selectedItems.length}
+                  renameDisabled={!canRename}
+                  shareDisabled={!canRename || isUploading}
+                  downloadDisabled={selectedFileIds.length === 0 || isUploading}
+                  onClearSelection={clearSelection}
+                  onDownload={() => {
+                    if (!isUploading) {
+                      void handleDownloadSelected();
+                    }
+                  }}
+                  onMove={() => { if (!isUploading) setMoveOpen(true); }}
+                  onShare={() => {
+                    if (!selectedPrimary) {
+                      return;
+                    }
+                    if (isUploading) {
+                      return;
+                    }
+                    setShareOpen(true);
+                  }}
+                  onRename={() => {
+                    if (!selectedPrimary) {
+                      return;
+                    }
+                    if (isUploading) {
+                      return;
+                    }
+                    setRenameValue(selectedPrimary.name);
+                    setRenameOpen(true);
+                  }}
+                  onDelete={() => { if (!isUploading) setDeleteOpen(true); }}
+                />
+              ) : null}
+            </div>
             <div
               className="relative"
               onDragEnter={handleDragEnter}
