@@ -157,7 +157,7 @@ describe("app routes", () => {
     expect(screen.getByText("Search across your documents.")).toBeInTheDocument();
   });
 
-  it("navigates to the document workspace from Home", async () => {
+  it("opens a document preview modal from Home on double click", async () => {
     mockDocCount = 1;
     const doc: DocumentDTO = {
       id: "doc-456",
@@ -186,16 +186,14 @@ describe("app routes", () => {
     renderApp("/app/home");
 
     const row = await screen.findByText("Lease agreement");
-    fireEvent.click(row);
+    fireEvent.doubleClick(row);
 
-    const openButton = await screen.findByText("Open document");
-    fireEvent.click(openButton);
-
-    expect(await screen.findByText("Document view")).toBeInTheDocument();
-    expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
+    expect(await screen.findByText("Extracted fields")).toBeInTheDocument();
+    expect(screen.queryByText("Document view")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
-  it("renders document workspace panels at /app/doc/:id", async () => {
+  it("redirects /app/doc/:id to Home", async () => {
     mockDocCount = 1;
     const doc: DocumentDTO = {
       id: "doc-789",
@@ -205,13 +203,12 @@ describe("app routes", () => {
       status: "READY",
       createdAt: new Date().toISOString(),
     };
-    getDocument.mockResolvedValue({ ok: true, doc });
+    listDocuments.mockResolvedValue({ ok: true, docs: [doc] });
 
     renderApp("/app/doc/doc-789");
 
-    expect(await screen.findByText("Document view")).toBeInTheDocument();
-    expect(screen.getByText("Ask AI about this document")).toBeInTheDocument();
-    expect(screen.getByText("Preview")).toBeInTheDocument();
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+    expect(screen.queryByText("Document view")).not.toBeInTheDocument();
   });
 
   it("resets chat state when switching from document chat to global chat", async () => {
