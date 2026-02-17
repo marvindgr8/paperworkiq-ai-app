@@ -111,8 +111,9 @@ const DocumentPreview = ({
     mimeType === "application/vnd.ms-excel" ||
     mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   const status = document?.status ?? "UPLOADED";
-  const statusLabel = formatStatus(status);
-  const badgeClass = statusStyles[status] ?? "bg-slate-100 text-slate-600";
+  const displayStatus = status === "FAILED" && previewUrl ? "READY" : status;
+  const statusLabel = formatStatus(displayStatus);
+  const badgeClass = statusStyles[displayStatus] ?? "bg-slate-100 text-slate-600";
   const rawText = document?.rawText ?? "";
   const processingErrorMessage = useMemo(
     () => formatProcessingError(document?.processingError),
@@ -222,7 +223,7 @@ const DocumentPreview = ({
               </span>
             </div>
             <p className="text-xs text-slate-500">Uploaded {createdAtLabel}</p>
-            {processingErrorMessage ? (
+            {processingErrorMessage && displayStatus === "FAILED" ? (
               <div className="space-y-1 text-xs text-rose-500">
                 <p>{processingErrorMessage.title}</p>
                 {processingErrorMessage.hint ? (
