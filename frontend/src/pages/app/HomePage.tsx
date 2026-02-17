@@ -752,23 +752,32 @@ const HomePage = () => {
 
 
       {previewDocument ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm">
           <button
             type="button"
             className="absolute inset-0"
             aria-label="Close preview"
             onClick={closePreview}
           />
-          <div className="relative z-10 flex h-[90vh] w-full max-w-6xl flex-col rounded-[28px] bg-slate-100 p-4 shadow-2xl">
-            <div className="mb-3 flex justify-end">
-              <Button size="sm" variant="outline" onClick={closePreview}>
+          <div className="relative z-10 flex h-full w-full flex-col overflow-hidden">
+            <div className="flex h-16 items-center justify-between border-b border-white/10 bg-slate-950/80 px-6 text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {previewDocument.fileName ?? previewDocument.title ?? "Document preview"}
+                </p>
+                <p className="text-xs text-slate-300">Immersive preview</p>
+              </div>
+              <Button size="sm" variant="ghost" className="text-white hover:bg-white/10" onClick={closePreview}>
                 <X className="h-4 w-4" />
                 Close
               </Button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              {previewLoading ? <div className="h-full animate-pulse rounded-[28px] bg-white" /> : null}
-              <DocumentPreview document={previewDocument} />
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-8">
+              {previewLoading ? <div className="h-full animate-pulse rounded-[28px] bg-slate-200" /> : null}
+              <DocumentPreview
+                document={previewDocument}
+                className="mx-auto w-full max-w-7xl border-white/10 bg-slate-100/95"
+              />
             </div>
           </div>
         </div>
