@@ -765,7 +765,6 @@ const HomePage = () => {
                 <p className="truncate text-sm font-semibold">
                   {previewDocument.fileName ?? previewDocument.title ?? "Document preview"}
                 </p>
-                <p className="text-xs text-slate-300">Immersive preview</p>
               </div>
               <Button size="sm" variant="ghost" className="text-white hover:bg-white/10" onClick={closePreview}>
                 <X className="h-4 w-4" />

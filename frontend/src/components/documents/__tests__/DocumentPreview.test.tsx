@@ -17,7 +17,7 @@ describe("DocumentPreview", () => {
     expect(screen.getByText("Select a document")).toBeInTheDocument();
   });
 
-  it("renders extracted fields for an image document", () => {
+  it("renders header details for an image document", () => {
     const doc: DocumentDTO = {
       id: "doc-1",
       title: "Invoice",
@@ -36,10 +36,8 @@ describe("DocumentPreview", () => {
 
     render(<DocumentPreview document={doc} />);
 
-    expect(screen.getByText("Extracted fields")).toBeInTheDocument();
-    expect(screen.getByText("Key details found in this document")).toBeInTheDocument();
-    expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("$120")).toBeInTheDocument();
+    expect(screen.getByText("Invoice")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
   it("renders PDF preview for PDF documents", async () => {

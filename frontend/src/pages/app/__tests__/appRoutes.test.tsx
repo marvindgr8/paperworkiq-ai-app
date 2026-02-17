@@ -188,7 +188,7 @@ describe("app routes", () => {
     const row = await screen.findByText("Lease agreement");
     fireEvent.doubleClick(row);
 
-    expect(await screen.findByText("Extracted fields")).toBeInTheDocument();
+    expect(await screen.findByTitle("Document preview")).toBeInTheDocument();
     expect(screen.queryByText("Document view")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });

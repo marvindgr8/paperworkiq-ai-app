@@ -109,7 +109,6 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
                   <DocumentPreview
                     document={activeDocument}
                     showHeader={false}
-                    showTabs={false}
                     size="compact"
                     className="border-0 bg-transparent p-0 shadow-none"
                   />
@@ -177,7 +176,6 @@ const EvidencePanel = ({ className }: EvidencePanelProps) => {
                 <DocumentPreview
                   document={activeDocument}
                   showHeader={false}
-                  showTabs={false}
                   size="compact"
                   className="border-0 bg-transparent p-0 shadow-none"
                 />
