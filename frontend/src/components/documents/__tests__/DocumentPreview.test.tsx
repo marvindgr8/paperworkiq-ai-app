@@ -59,6 +59,26 @@ describe("DocumentPreview", () => {
     });
   });
 
+
+  it("shows Ready badge when preview is available for a previously failed document", async () => {
+    const doc: DocumentDTO = {
+      id: "doc-4",
+      title: "Recovered PDF",
+      fileName: "recovered.pdf",
+      mimeType: "application/pdf",
+      status: "FAILED",
+      createdAt: new Date().toISOString(),
+      processingError: "Bad XRef entry",
+    };
+
+    render(<DocumentPreview document={doc} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ready")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("We couldn't read this PDF (bad XRef entry).")).not.toBeInTheDocument();
+  });
   it("renders document iframe preview for supported office file types", async () => {
     const doc: DocumentDTO = {
       id: "doc-3",
