@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { X } from "lucide-react";
 import AppHeader from "@/components/app/AppHeader";
 import DriveBrowser, { type DriveItem } from "@/components/documents/DriveBrowser";
+import DocumentPreview from "@/components/documents/DocumentPreview";
 import SelectionBar from "@/components/documents/SelectionBar";
 import UploadFirstEmptyState from "@/components/uploads/UploadFirstEmptyState";
 import Button from "@/components/ui/Button";
@@ -24,6 +26,7 @@ import {
   updateFolder,
   uploadFiles,
   uploadFolder,
+  getDocument,
   type DocumentDTO,
   type FolderDTO,
 } from "@/lib/api";
@@ -34,7 +37,6 @@ const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentFolderId = searchParams.get("folderId");
   const createRequested = searchParams.get("create") === "1";
-  const navigate = useNavigate();
 
   const [folders, setFolders] = useState<FolderDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
@@ -57,6 +59,8 @@ const HomePage = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [moveDestination, setMoveDestination] = useState<string>("root");
+  const [previewDocument, setPreviewDocument] = useState<DocumentDTO | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const { docCount, isLoading, uploadSignal, registerSidebarActions } = useAppGate();
 
   const uploadFirst = !isLoading && docCount === 0;
@@ -225,7 +229,27 @@ const HomePage = () => {
       openFolder(item.id);
       return;
     }
-    navigate(`/app/doc/${item.id}`);
+
+    const fallbackDocument = documents.find((document) => document.id === item.id) ?? null;
+    setPreviewDocument(fallbackDocument);
+    setPreviewLoading(true);
+    void (async () => {
+      try {
+        const response = await getDocument(item.id);
+        if (response.ok) {
+          setPreviewDocument(response.doc ?? fallbackDocument);
+          return;
+        }
+      } finally {
+        setPreviewLoading(false);
+      }
+      setPreviewDocument(fallbackDocument);
+    })();
+  };
+
+  const closePreview = () => {
+    setPreviewDocument(null);
+    setPreviewLoading(false);
   };
 
   const refreshItems = useCallback(async () => {
@@ -721,6 +745,30 @@ const HomePage = () => {
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShareOpen(false)}>Cancel</Button>
               <Button onClick={() => void handleShareSelected()} disabled={!shareEmail.trim()}>Share</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+      {previewDocument ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Close preview"
+            onClick={closePreview}
+          />
+          <div className="relative z-10 flex h-[90vh] w-full max-w-6xl flex-col rounded-[28px] bg-slate-100 p-4 shadow-2xl">
+            <div className="mb-3 flex justify-end">
+              <Button size="sm" variant="outline" onClick={closePreview}>
+                <X className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {previewLoading ? <div className="h-full animate-pulse rounded-[28px] bg-white" /> : null}
+              <DocumentPreview document={previewDocument} />
             </div>
           </div>
         </div>
